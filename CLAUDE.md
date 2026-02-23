@@ -17,7 +17,7 @@ This PoC is intentionally minimal — no auth, no backend, no production hardeni
 |-------|-----------|
 | Build | Vite 5 + TypeScript (strict mode) |
 | UI | React 18 (no router, single page) |
-| PWA | vite-plugin-pwa + Workbox |
+| PWA | vite-plugin-pwa + Workbox (`injectManifest` strategy) |
 | WASM | Rust (`frame-analyzer` crate) + wasm-pack 0.14 |
 | Camera | `getUserMedia` + `MediaRecorder` + Canvas API |
 
@@ -40,19 +40,46 @@ npm run preview
 
 ## Architecture & Data Flow
 
-`App.tsx` owns top-level state. It wires together two hooks and passes refs/callbacks down:
+`App.tsx` owns top-level state. It wires together hooks and passes refs/callbacks down:
 
 ```
 App
- ├─ useCamera()          → videoRef, stream, status, startCamera, stopCamera
+ ├─ useCamera()          → videoRef, stream, status, startCamera, stopCamera, switchCamera
  ├─ useFrameAnalysis()   → metrics, wasmReady, startAnalysis, stopAnalysis
  │     └─ creates a detached <canvas> (not in DOM) for pixel reads
+ ├─ useInstallPrompt()   → canInstall, isIOS, isInstalled, saveSettings, promptInstall
  ├─ CameraPreview        → renders <video ref={videoRef}> + QualityOverlay
+ ├─ InstallBanner        → collapsible install UI; hidden when isInstalled or neither canInstall nor isIOS
  ├─ PhotoCapture         → captures frame from videoRef to its own hidden canvas; calls analyze_frame()
  └─ VideoCapture         → wraps useMediaRecorder(); records stream to .webm blob
 ```
 
 Key wiring: `CameraPreview` fires `onVideoReady(videoEl)` when the `playing` event fires, which triggers `startAnalysis(videoEl)` in `useFrameAnalysis`.
+
+## PWA Install & Service Worker (`src/sw.ts`)
+
+The app uses `injectManifest` (not `generateSW`) so that the SW can intercept the browser's manifest request and return a dynamically composed manifest from user settings stored in the Cache API.
+
+**Data flow for custom name/icon install:**
+```
+User sets name + icon in InstallBanner
+  → saveSettings() writes to Cache API ('pwa-meta' cache):
+      /pwa-manifest-override  →  { name, shortName, hasCustomIcon }
+      /icons/custom-icon.png  →  raw image blob (if provided)
+  → promptInstall() calls deferredEvent.prompt()
+  → browser fetches /manifest.json
+  → SW intercepts → reads 'pwa-meta' → merges into BASE_MANIFEST → returns custom manifest
+```
+
+**SW fetch routes (in priority order):**
+1. `/manifest.json` or `/manifest.webmanifest` → `serveManifest()` (dynamic manifest)
+2. `/icons/custom-icon.png` → served from `'pwa-meta'` cache, network fallback
+3. `mode === 'navigate'` → SPA fallback to cached `/index.html`
+4. All other requests → cache-first, network fallback
+
+**`injectManifest` gotcha:** Workbox replaces the literal token `self.__WB_MANIFEST` in the compiled SW output with the precache array. The token must survive TypeScript compilation — declare it as a property on `self` (not as a bare `declare const __WB_MANIFEST`), otherwise workbox throws `"Unable to find a place to inject the manifest"`.
+
+**tsconfig note:** `src/sw.ts` is excluded from `tsconfig.app.json` (which uses the DOM lib) and uses `/// <reference lib="webworker" />` instead. Vite-plugin-pwa compiles it in a separate rollup pass.
 
 ## WASM Module (`wasm/src/lib.rs`)
 
@@ -113,3 +140,5 @@ Tried in order:
 - [ ] Photo capture: thumbnail appears with WASM metrics
 - [ ] Video record/stop: `.webm` download link appears
 - [ ] Mobile (LAN): rear camera activates by default, PWA installable
+- [ ] Chrome/Edge (Android or desktop): install banner appears after a few seconds; entering a custom name + icon and clicking Install shows them in the OS install dialog
+- [ ] iOS Safari: install banner shows manual "Compartilhar → Adicionar à Tela de Início" instructions (no install button)
