@@ -53,39 +53,42 @@ const overlayStyle: React.CSSProperties = {
 
 const subjectGuideStyle: React.CSSProperties = {
   position: 'absolute',
-  left: '8%',
-  top: '10%',
-  width: '35%',
-  height: '75%',
-  border: '2px dashed rgba(255,255,255,0.6)',
+  left: '5%',
+  top: '8%',
+  width: '40%',
+  height: '78%',
+  border: '2.5px dashed rgba(255,255,255,0.95)',
   borderRadius: '8px',
   display: 'flex',
   alignItems: 'flex-start',
   justifyContent: 'center',
   paddingTop: '6px',
+  filter: 'drop-shadow(0 0 3px rgba(0,0,0,0.9))',
 }
 
 const cardGuideStyle: React.CSSProperties = {
   position: 'absolute',
-  right: '6%',
-  bottom: '18%',
-  width: '20%',
+  right: '4%',
+  bottom: '12%',
+  width: '38%',
   // credit card aspect ratio ~1.585 → height ≈ width / 1.585
   aspectRatio: '1.585',
-  border: '2px dashed rgba(255,220,80,0.75)',
+  border: '2.5px dashed rgba(255,220,50,0.95)',
   borderRadius: '4px',
   display: 'flex',
   alignItems: 'flex-start',
   justifyContent: 'center',
   paddingTop: '4px',
+  filter: 'drop-shadow(0 0 3px rgba(0,0,0,0.9))',
 }
 
 const guideLabelStyle: React.CSSProperties = {
-  fontSize: '0.6rem',
-  color: 'rgba(255,255,255,0.7)',
+  fontSize: '0.65rem',
+  color: '#fff',
   textTransform: 'uppercase',
   letterSpacing: '0.08em',
   userSelect: 'none',
+  textShadow: '0 1px 4px rgba(0,0,0,0.9)',
 }
 
 const statusDotsStyle: React.CSSProperties = {
