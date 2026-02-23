@@ -97,14 +97,14 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Cache-first for OpenCV.js (one-time ~8MB download)
+  // Cache-first for OpenCV.js (one-time ~10MB download)
   if (url.pathname === '/opencv/opencv.js') {
     event.respondWith(
-      caches.open('opencv-v1').then((cache) =>
+      caches.open('opencv-v2').then((cache) =>
         cache.match(request).then((res) => {
           if (res) return res
           return fetch(request).then((r) => {
-            cache.put(request, r.clone())
+            if (r.ok) cache.put(request, r.clone())
             return r
           })
         }),
