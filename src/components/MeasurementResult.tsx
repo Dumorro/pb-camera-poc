@@ -28,7 +28,8 @@ export function MeasurementResult({ result, onReset }: Props) {
         Resultados são aproximados — iluminação, ângulo e segmentação afetam a precisão.
       </p>
       <p style={debugStyle}>
-        Escala do cartão: {result.pxPerMm} px/mm · Esperado: 8–15 px/mm para fotos normais
+        Escala do cartão: {result.pxPerMm} px/mm
+        {result.pxPerMm < 5 ? ' · ⚠️ Câmera distante — aproxime o cartão para mais precisão' : result.pxPerMm > 15 ? ' · ⚠️ Câmera muito próxima do cartão' : ' · ✓ Escala OK'}
       </p>
 
       <button onClick={onReset} style={resetBtnStyle}>

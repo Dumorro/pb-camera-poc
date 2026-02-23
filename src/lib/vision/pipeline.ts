@@ -143,16 +143,28 @@ function findSubjectByContrast(src: any, cardBoundingRect: any | null): any | nu
 
     let bestRotated: any = null
     let bestArea = 0
+    const imgArea = src.rows * src.cols
 
     for (let i = 0; i < contours.size(); i++) {
       const contour = contours.get(i)
       const area = C.contourArea(contour)
-      if (area < 2000) continue
 
-      if (cardBoundingRect) {
-        const br = C.boundingRect(contour)
-        if (rectsOverlap(br, cardBoundingRect, 0.3)) continue
-      }
+      if (area < 2000) continue
+      // Reject very large background regions (table ring surrounding paper)
+      if (area > imgArea * 0.40) continue
+
+      const br = C.boundingRect(contour)
+
+      // Reject contours touching the image border — these are table strips or
+      // background bleed visible when the A4 paper doesn't fill the full frame
+      if (
+        br.x <= 2 ||
+        br.y <= 2 ||
+        br.x + br.width >= src.cols - 2 ||
+        br.y + br.height >= src.rows - 2
+      ) continue
+
+      if (cardBoundingRect && rectsOverlap(br, cardBoundingRect, 0.3)) continue
 
       if (area > bestArea) {
         bestArea = area
