@@ -1,13 +1,16 @@
 import { useCallback } from 'react'
 import { CameraPreview } from './components/CameraPreview'
+import { InstallBanner } from './components/InstallBanner'
 import { PhotoCapture } from './components/PhotoCapture'
 import { VideoCapture } from './components/VideoCapture'
 import { useCamera } from './hooks/useCamera'
 import { useFrameAnalysis } from './hooks/useFrameAnalysis'
+import { useInstallPrompt } from './hooks/useInstallPrompt'
 
 export default function App() {
   const { videoRef, stream, status, facingMode, errorMessage, startCamera, stopCamera, switchCamera } = useCamera()
   const { metrics, wasmReady, startAnalysis, stopAnalysis } = useFrameAnalysis()
+  const { canInstall, isIOS, isInstalled, saveSettings, promptInstall } = useInstallPrompt()
 
   const handleVideoReady = useCallback(
     (videoEl: HTMLVideoElement) => startAnalysis(videoEl),
@@ -55,6 +58,15 @@ export default function App() {
             </>
           )}
         </div>
+
+        {/* PWA install banner */}
+        <InstallBanner
+          canInstall={canInstall}
+          isIOS={isIOS}
+          isInstalled={isInstalled}
+          saveSettings={saveSettings}
+          promptInstall={promptInstall}
+        />
 
         {/* Capture tools */}
         {isActive && (
