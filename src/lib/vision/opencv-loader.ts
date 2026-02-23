@@ -19,20 +19,19 @@ export function loadOpenCV(): Promise<void> {
     s.src = '/opencv/opencv.js'
 
     s.onload = () => {
-      try {
-        // moduleOverrides IS the Emscripten Module — cv APIs are added to it in-place
-        const moduleOverrides: any = {
-          onRuntimeInitialized() {
-            _cvInstance = moduleOverrides
-            clearTimeout(timeout)
-            resolve()
-          },
-        }
-        ;(window as any).cv(moduleOverrides)
-      } catch (err) {
+      // @techstark/opencv-js sets window.cv to the cv Object directly (not a factory fn).
+      // Wait for WASM to finish initializing via onRuntimeInitialized.
+      const cvObj = (window as any).cv
+      _cvInstance = cvObj
+      if (typeof cvObj?.Mat === 'function') {
+        // Already fully initialized (e.g. cached script re-executed)
         clearTimeout(timeout)
-        promise = null
-        reject(err)
+        resolve()
+      } else {
+        cvObj.onRuntimeInitialized = () => {
+          clearTimeout(timeout)
+          resolve()
+        }
       }
     }
 
