@@ -27,6 +27,9 @@ export function MeasurementResult({ result, onReset }: Props) {
         Margem de erro estimada: ±{marginOfErrorMm} mm.
         Resultados são aproximados — iluminação, ângulo e segmentação afetam a precisão.
       </p>
+      <p style={debugStyle}>
+        Escala do cartão: {result.pxPerMm} px/mm · Esperado: 8–15 px/mm para fotos normais
+      </p>
 
       <button onClick={onReset} style={resetBtnStyle}>
         Nova medição
@@ -96,6 +99,13 @@ const disclaimerStyle: React.CSSProperties = {
   color: '#666',
   textAlign: 'center',
   lineHeight: 1.5,
+}
+
+const debugStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: '0.65rem',
+  color: '#444',
+  textAlign: 'center',
 }
 
 const resetBtnStyle: React.CSSProperties = {

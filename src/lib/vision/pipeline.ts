@@ -10,6 +10,8 @@ export interface MeasurementResult {
   lengthCm: string
   widthCm: string
   marginOfErrorMm: number
+  /** Debug: pixels-per-mm derived from card. ~8-12 for typical phone photos. */
+  pxPerMm: number
 }
 
 export interface PipelineResult {
@@ -94,54 +96,6 @@ function pixelsPerMm(rotated: any): number {
   return longerSide / CARD_WIDTH_MM
 }
 
-/**
- * Create a skin tone mask using HSV segmentation.
- */
-function createSkinMask(src: any): any {
-  const C = cv()
-  let bgr: any, hsv: any, mask1: any, mask2: any, combined: any, closed: any, opened: any
-  let closeKernel: any, openKernel: any
-
-  try {
-    bgr = new C.Mat()
-    hsv = new C.Mat()
-    mask1 = new C.Mat()
-    mask2 = new C.Mat()
-    combined = new C.Mat()
-    closed = new C.Mat()
-    opened = new C.Mat()
-
-    C.cvtColor(src, bgr, C.COLOR_RGBA2BGR)
-    C.cvtColor(bgr, hsv, C.COLOR_BGR2HSV)
-
-    // Range 1: lighter skin tones
-    const lower1 = new C.Mat(hsv.rows, hsv.cols, hsv.type(), [0, 20, 60, 255])
-    const upper1 = new C.Mat(hsv.rows, hsv.cols, hsv.type(), [20, 255, 255, 255])
-    C.inRange(hsv, lower1, upper1, mask1)
-    lower1.delete()
-    upper1.delete()
-
-    // Range 2: darker skin tones
-    const lower2 = new C.Mat(hsv.rows, hsv.cols, hsv.type(), [0, 10, 40, 255])
-    const upper2 = new C.Mat(hsv.rows, hsv.cols, hsv.type(), [25, 180, 255, 255])
-    C.inRange(hsv, lower2, upper2, mask2)
-    lower2.delete()
-    upper2.delete()
-
-    C.bitwise_or(mask1, mask2, combined)
-
-    closeKernel = C.Mat.ones(15, 15, C.CV_8U)
-    openKernel = C.Mat.ones(7, 7, C.CV_8U)
-    C.morphologyEx(combined, closed, C.MORPH_CLOSE, closeKernel)
-    C.morphologyEx(closed, opened, C.MORPH_OPEN, openKernel)
-
-    return opened
-  } finally {
-    releaseMats(bgr, hsv, mask1, mask2, combined, closed, closeKernel, openKernel)
-    // opened is returned — caller must delete
-  }
-}
-
 function rectsOverlap(rect: any, cardRect: any, threshold = 0.3): boolean {
   // Simple AABB overlap check
   const rx = rect.x, ry = rect.y, rw = rect.width, rh = rect.height
@@ -159,16 +113,33 @@ function rectsOverlap(rect: any, cardRect: any, threshold = 0.3): boolean {
 }
 
 /**
- * Find the largest skin contour that doesn't overlap with the card region.
+ * Find the largest foreground object that doesn't overlap with the card.
+ * Uses OTSU thresholding (light background → dark object) instead of skin segmentation,
+ * so it works for any object color on a white/light background.
  */
-function findSubject(mask: any, cardBoundingRect: any | null): any | null {
+function findSubjectByContrast(src: any, cardBoundingRect: any | null): any | null {
   const C = cv()
-  let contours: any, hierarchy: any
+  let gray: any, blurred: any, binary: any, closed: any, contours: any, hierarchy: any, kernel: any
 
   try {
+    gray = new C.Mat()
+    blurred = new C.Mat()
+    binary = new C.Mat()
+    closed = new C.Mat()
     contours = new C.MatVector()
     hierarchy = new C.Mat()
-    C.findContours(mask, contours, hierarchy, C.RETR_EXTERNAL, C.CHAIN_APPROX_SIMPLE)
+
+    C.cvtColor(src, gray, C.COLOR_RGBA2GRAY)
+    C.GaussianBlur(gray, blurred, new C.Size(7, 7), 0)
+
+    // OTSU: automatically finds threshold separating light background from darker object
+    C.threshold(blurred, binary, 0, 255, C.THRESH_BINARY_INV + C.THRESH_OTSU)
+
+    // Morphological close to fill gaps within the object
+    kernel = C.Mat.ones(11, 11, C.CV_8U)
+    C.morphologyEx(binary, closed, C.MORPH_CLOSE, kernel)
+
+    C.findContours(closed, contours, hierarchy, C.RETR_EXTERNAL, C.CHAIN_APPROX_SIMPLE)
 
     let bestRotated: any = null
     let bestArea = 0
@@ -176,11 +147,11 @@ function findSubject(mask: any, cardBoundingRect: any | null): any | null {
     for (let i = 0; i < contours.size(); i++) {
       const contour = contours.get(i)
       const area = C.contourArea(contour)
-      if (area < 500) continue
+      if (area < 2000) continue
 
       if (cardBoundingRect) {
         const br = C.boundingRect(contour)
-        if (rectsOverlap(br, cardBoundingRect)) continue
+        if (rectsOverlap(br, cardBoundingRect, 0.3)) continue
       }
 
       if (area > bestArea) {
@@ -198,7 +169,7 @@ function findSubject(mask: any, cardBoundingRect: any | null): any | null {
 
     return bestRotated
   } finally {
-    releaseMats(hierarchy)
+    releaseMats(gray, blurred, binary, closed, hierarchy, kernel)
     if (contours) contours.delete()
   }
 }
@@ -209,7 +180,7 @@ function computeMeasurements(subject: any, pxPerMm: number): MeasurementResult {
   const lengthCm = (lengthMm / 10).toFixed(1)
   const widthCm = (widthMm / 10).toFixed(1)
   const marginOfErrorMm = Math.round(lengthMm * 0.04)
-  return { lengthCm, widthCm, marginOfErrorMm }
+  return { lengthCm, widthCm, marginOfErrorMm, pxPerMm: Math.round(pxPerMm * 10) / 10 }
 }
 
 /**
@@ -225,7 +196,7 @@ export async function runPipeline(imageData: ImageData): Promise<PipelineResult>
   }
 
   const C = cv()
-  let src: any, skinMask: any
+  let src: any
 
   try {
     src = C.matFromImageData(imageData)
@@ -238,21 +209,18 @@ export async function runPipeline(imageData: ImageData): Promise<PipelineResult>
 
     const pxMm = pixelsPerMm(cardResult.rotated)
 
-    // 2. Create skin mask
-    skinMask = createSkinMask(src)
-
-    // 3. Find subject
-    const subject = findSubject(skinMask, cardResult.boundingRect)
+    // 2. Find subject by contrast (OTSU threshold — works for any color on light background)
+    const subject = findSubjectByContrast(src, cardResult.boundingRect)
     if (!subject) {
-      return { measurements: null, error: 'Objeto não detectado. Certifique-se de boa iluminação e fundo claro.' }
+      return { measurements: null, error: 'Objeto não detectado. Use fundo claro e certifique-se de que o objeto está visível.' }
     }
 
-    // 4. Compute measurements
+    // 3. Compute measurements
     const measurements = computeMeasurements(subject, pxMm)
     return { measurements, error: null }
   } catch (err: any) {
     return { measurements: null, error: `Erro no processamento: ${err?.message ?? err}` }
   } finally {
-    releaseMats(src, skinMask)
+    releaseMats(src)
   }
 }
