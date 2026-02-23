@@ -1,0 +1,9 @@
+node_modules/
+dist/
+src/lib/wasm-pkg/
+wasm/target/
+wasm/pkg/
+*.local
+.DS_Store
+*.tsbuildinfo
+*.log
