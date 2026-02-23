@@ -97,19 +97,10 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Cache-first for OpenCV.js (one-time ~10MB download)
+  // opencv.js is ~10MB — skip SW interception entirely.
+  // Vercel serves it with Cache-Control: immutable so the browser HTTP cache handles it.
+  // Cloning 10MB in a SW respondWith caused failures on iOS Safari.
   if (url.pathname === '/opencv/opencv.js') {
-    event.respondWith(
-      caches.open('opencv-v2').then((cache) =>
-        cache.match(request).then((res) => {
-          if (res) return res
-          return fetch(request).then((r) => {
-            if (r.ok) cache.put(request, r.clone())
-            return r
-          })
-        }),
-      ),
-    )
     return
   }
 

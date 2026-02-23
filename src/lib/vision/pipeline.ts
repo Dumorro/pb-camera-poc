@@ -219,8 +219,9 @@ function computeMeasurements(subject: any, pxPerMm: number): MeasurementResult {
 export async function runPipeline(imageData: ImageData): Promise<PipelineResult> {
   try {
     await loadOpenCV()
-  } catch {
-    return { measurements: null, error: 'OpenCV.js não pôde ser carregado. Coloque o arquivo em /opencv/opencv.js.' }
+  } catch (err: any) {
+    // Show actual error for diagnostics
+    return { measurements: null, error: `OpenCV.js falhou: ${err?.message ?? String(err)}` }
   }
 
   const C = cv()

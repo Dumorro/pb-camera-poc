@@ -39,7 +39,7 @@ export function loadOpenCV(): Promise<void> {
     s.onerror = () => {
       clearTimeout(timeout)
       promise = null
-      reject(new Error('Failed to load OpenCV.js from /opencv/opencv.js'))
+      reject(new Error('script.onerror: /opencv/opencv.js não carregou (404, rede, ou CSP)'))
     }
 
     document.head.appendChild(s)
