@@ -69,8 +69,8 @@ const subjectGuideStyle: React.CSSProperties = {
 const cardGuideStyle: React.CSSProperties = {
   position: 'absolute',
   right: '4%',
-  bottom: '12%',
-  width: '38%',
+  top: '38%',
+  width: '34%',
   // credit card aspect ratio ~1.585 → height ≈ width / 1.585
   aspectRatio: '1.585',
   border: '2.5px dashed rgba(255,220,50,0.95)',

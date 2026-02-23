@@ -44,7 +44,7 @@ function detectCard(src: any): { boundingRect: any; rotated: any } | null {
 
     C.cvtColor(src, gray, C.COLOR_RGBA2GRAY)
     C.GaussianBlur(gray, blurred, new C.Size(5, 5), 0)
-    C.Canny(blurred, edges, 40, 120)
+    C.Canny(blurred, edges, 20, 80)
 
     kernel = C.Mat.ones(3, 3, C.CV_8U)
     C.dilate(edges, dilated, kernel)
