@@ -6,7 +6,7 @@ import { useCamera } from './hooks/useCamera'
 import { useFrameAnalysis } from './hooks/useFrameAnalysis'
 
 export default function App() {
-  const { videoRef, stream, status, errorMessage, startCamera, stopCamera } = useCamera()
+  const { videoRef, stream, status, facingMode, errorMessage, startCamera, stopCamera, switchCamera } = useCamera()
   const { metrics, wasmReady, startAnalysis, stopAnalysis } = useFrameAnalysis()
 
   const handleVideoReady = useCallback(
@@ -41,13 +41,18 @@ export default function App() {
         {/* Camera controls */}
         <div style={controlsStyle}>
           {!isActive ? (
-            <button onClick={startCamera} style={primaryBtnStyle}>
+            <button onClick={() => startCamera()} style={primaryBtnStyle}>
               📷 Iniciar Câmera
             </button>
           ) : (
-            <button onClick={handleStop} style={secondaryBtnStyle}>
-              ⏏ Parar Câmera
-            </button>
+            <>
+              <button onClick={handleStop} style={secondaryBtnStyle}>
+                ⏏ Parar
+              </button>
+              <button onClick={switchCamera} style={switchBtnStyle} title="Trocar câmera">
+                {facingMode === 'environment' ? '🤳 Frontal' : '📷 Traseira'}
+              </button>
+            </>
           )}
         </div>
 
@@ -138,6 +143,18 @@ const secondaryBtnStyle: React.CSSProperties = {
   background: 'transparent',
   color: '#888',
   border: '1px solid #333',
+  borderRadius: '10px',
+  cursor: 'pointer',
+}
+
+const switchBtnStyle: React.CSSProperties = {
+  flex: 1,
+  padding: '14px',
+  fontSize: '1rem',
+  fontWeight: 600,
+  background: '#1a1a1a',
+  color: '#f0f0f0',
+  border: '1px solid #444',
   borderRadius: '10px',
   cursor: 'pointer',
 }

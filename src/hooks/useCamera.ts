@@ -1,25 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 export type CameraStatus = 'idle' | 'requesting' | 'active' | 'error'
+export type FacingMode = 'environment' | 'user'
 
 interface UseCameraReturn {
   videoRef: React.RefObject<HTMLVideoElement | null>
   stream: MediaStream | null
   status: CameraStatus
+  facingMode: FacingMode
   errorMessage: string | null
-  startCamera: () => Promise<void>
+  startCamera: (facing?: FacingMode) => Promise<void>
   stopCamera: () => void
+  switchCamera: () => void
 }
 
 /**
  * Manages getUserMedia lifecycle.
- * Priority: environment (rear/1x) → user (front) → any video.
+ * Default: environment (rear/1x). Falls back to user (front) then any camera.
  */
 export function useCamera(): UseCameraReturn {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [status, setStatus] = useState<CameraStatus>('idle')
+  const [facingMode, setFacingMode] = useState<FacingMode>('environment')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const stopCamera = useCallback(() => {
@@ -34,27 +38,28 @@ export function useCamera(): UseCameraReturn {
     setStatus('idle')
   }, [])
 
-  const startCamera = useCallback(async () => {
+  const startCamera = useCallback(async (facing: FacingMode = 'environment') => {
     stopCamera()
     setStatus('requesting')
+    setFacingMode(facing)
     setErrorMessage(null)
 
     const constraints: MediaStreamConstraints[] = [
-      // 1. Rear camera (1x on mobile)
+      // Preferred: exact facing mode requested
       {
         video: {
-          facingMode: { exact: 'environment' },
+          facingMode: { exact: facing },
           width: { ideal: 1280 },
           height: { ideal: 720 },
         },
         audio: false,
       },
-      // 2. Front camera fallback
+      // Non-exact fallback (some desktop browsers ignore facingMode)
       {
-        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
       },
-      // 3. Any camera
+      // Any camera
       { video: true, audio: false },
     ]
 
@@ -78,8 +83,13 @@ export function useCamera(): UseCameraReturn {
     setErrorMessage('Camera access denied or unavailable.')
   }, [stopCamera])
 
+  const switchCamera = useCallback(() => {
+    const next: FacingMode = facingMode === 'environment' ? 'user' : 'environment'
+    startCamera(next)
+  }, [facingMode, startCamera])
+
   // Cleanup on unmount
   useEffect(() => () => stopCamera(), [stopCamera])
 
-  return { videoRef, stream, status, errorMessage, startCamera, stopCamera }
+  return { videoRef, stream, status, facingMode, errorMessage, startCamera, stopCamera, switchCamera }
 }
