@@ -1,0 +1,15 @@
+{
+  "name": "frame-analyzer",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "frame_analyzer_bg.wasm",
+    "frame_analyzer.js",
+    "frame_analyzer.d.ts"
+  ],
+  "main": "frame_analyzer.js",
+  "types": "frame_analyzer.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

@@ -1,6 +1,6 @@
 node_modules/
 dist/
-src/lib/wasm-pkg/
+# src/lib/wasm-pkg/ — committed so Vercel doesn't need Rust toolchain
 wasm/target/
 wasm/pkg/
 *.local
