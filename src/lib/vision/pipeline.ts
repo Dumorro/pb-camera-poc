@@ -44,12 +44,15 @@ function detectCard(src: any): { boundingRect: any; rotated: any } | null {
 
     C.cvtColor(src, gray, C.COLOR_RGBA2GRAY)
     C.GaussianBlur(gray, blurred, new C.Size(5, 5), 0)
-    C.Canny(blurred, edges, 20, 80)
+    C.Canny(blurred, edges, 40, 120)
 
     kernel = C.Mat.ones(3, 3, C.CV_8U)
     C.dilate(edges, dilated, kernel)
 
-    C.findContours(dilated, contours, hierarchy, C.RETR_EXTERNAL, C.CHAIN_APPROX_SIMPLE)
+    // RETR_LIST (not RETR_EXTERNAL) so the card is found even when the A4 paper
+    // is fully visible and its outer rectangle would otherwise be the only
+    // EXTERNAL contour, hiding the card as an inner contour.
+    C.findContours(dilated, contours, hierarchy, C.RETR_LIST, C.CHAIN_APPROX_SIMPLE)
 
     let bestRotated: any = null
     let bestRect: any = null
@@ -155,14 +158,16 @@ function findSubjectByContrast(src: any, cardBoundingRect: any | null): any | nu
 
       const br = C.boundingRect(contour)
 
-      // Reject contours touching the image border — these are table strips or
-      // background bleed visible when the A4 paper doesn't fill the full frame
-      if (
-        br.x <= 2 ||
-        br.y <= 2 ||
-        br.x + br.width >= src.cols - 2 ||
-        br.y + br.height >= src.rows - 2
-      ) continue
+      // Reject strip-like contours that touch a frame edge AND span most of the
+      // frame in the other dimension — these are table strips visible when the
+      // A4 paper doesn't fill the full frame. A compact object near the edge
+      // (e.g. a plug touching the paper border) is NOT a strip and is kept.
+      const touchesLeft  = br.x <= 2
+      const touchesRight = br.x + br.width  >= src.cols - 2
+      const touchesTop   = br.y <= 2
+      const touchesBottom = br.y + br.height >= src.rows - 2
+      if ((touchesLeft || touchesRight) && br.height > src.rows * 0.60) continue
+      if ((touchesTop  || touchesBottom) && br.width  > src.cols * 0.60) continue
 
       if (cardBoundingRect && rectsOverlap(br, cardBoundingRect, 0.3)) continue
 
