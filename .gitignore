@@ -8,3 +8,5 @@ wasm/pkg/
 *.tsbuildinfo
 *.log
 .vercel
+# OpenCV.js — download separately, too large for git (~8MB)
+public/opencv/

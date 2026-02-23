@@ -1,6 +1,7 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { CameraPreview } from './components/CameraPreview'
 import { InstallBanner } from './components/InstallBanner'
+import { MeasurementCapture } from './components/MeasurementCapture'
 import { PhotoCapture } from './components/PhotoCapture'
 import { VideoCapture } from './components/VideoCapture'
 import { useCamera } from './hooks/useCamera'
@@ -11,6 +12,7 @@ export default function App() {
   const { videoRef, stream, status, facingMode, errorMessage, startCamera, stopCamera, switchCamera } = useCamera()
   const { metrics, wasmReady, startAnalysis, stopAnalysis } = useFrameAnalysis()
   const { canInstall, isIOS, isInstalled, saveSettings, promptInstall } = useInstallPrompt()
+  const [measureMode, setMeasureMode] = useState(false)
 
   const handleVideoReady = useCallback(
     (videoEl: HTMLVideoElement) => startAnalysis(videoEl),
@@ -20,6 +22,7 @@ export default function App() {
   const handleStop = () => {
     stopAnalysis()
     stopCamera()
+    setMeasureMode(false)
   }
 
   const isActive = status === 'active'
@@ -32,14 +35,20 @@ export default function App() {
       </header>
 
       <main style={mainStyle}>
-        <CameraPreview
-          videoRef={videoRef}
-          status={status}
-          errorMessage={errorMessage}
-          metrics={metrics}
-          wasmReady={wasmReady}
-          onVideoReady={handleVideoReady}
-        />
+        {/* Camera preview wrapper — position: relative so overlays can be absolute */}
+        <div style={previewWrapperStyle}>
+          <CameraPreview
+            videoRef={videoRef}
+            status={status}
+            errorMessage={errorMessage}
+            metrics={metrics}
+            wasmReady={wasmReady}
+            onVideoReady={handleVideoReady}
+          />
+          {measureMode && (
+            <MeasurementCapture videoRef={videoRef} isActive={isActive} />
+          )}
+        </div>
 
         {/* Camera controls */}
         <div style={controlsStyle}>
@@ -55,6 +64,13 @@ export default function App() {
               <button onClick={switchCamera} style={switchBtnStyle} title="Trocar câmera">
                 {facingMode === 'environment' ? '🤳 Frontal' : '📷 Traseira'}
               </button>
+              <button
+                onClick={() => setMeasureMode((m) => !m)}
+                style={measureMode ? activeMeasureBtnStyle : measureBtnStyle}
+                title="Medir"
+              >
+                {measureMode ? '✕ Sair' : '📏 Medir'}
+              </button>
             </>
           )}
         </div>
@@ -68,8 +84,8 @@ export default function App() {
           promptInstall={promptInstall}
         />
 
-        {/* Capture tools */}
-        {isActive && (
+        {/* Capture tools — hidden in measure mode */}
+        {isActive && !measureMode && (
           <section style={sectionStyle}>
             <PhotoCapture videoRef={videoRef} disabled={!isActive} />
             <hr style={dividerStyle} />
@@ -131,6 +147,10 @@ const mainStyle: React.CSSProperties = {
   gap: '16px',
 }
 
+const previewWrapperStyle: React.CSSProperties = {
+  position: 'relative',
+}
+
 const controlsStyle: React.CSSProperties = {
   display: 'flex',
   gap: '8px',
@@ -169,6 +189,25 @@ const switchBtnStyle: React.CSSProperties = {
   border: '1px solid #444',
   borderRadius: '10px',
   cursor: 'pointer',
+}
+
+const measureBtnStyle: React.CSSProperties = {
+  flex: 1,
+  padding: '14px',
+  fontSize: '1rem',
+  fontWeight: 600,
+  background: '#1a1a1a',
+  color: '#f0f0f0',
+  border: '1px solid #444',
+  borderRadius: '10px',
+  cursor: 'pointer',
+}
+
+const activeMeasureBtnStyle: React.CSSProperties = {
+  ...measureBtnStyle,
+  background: '#2a1a1a',
+  color: '#ff8888',
+  borderColor: '#ff4444',
 }
 
 const sectionStyle: React.CSSProperties = {

@@ -24,6 +24,7 @@ export default defineConfig({
       },
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm}'],
+        globIgnores: ['opencv/**'],
       },
       devOptions: { enabled: true },
     }),
