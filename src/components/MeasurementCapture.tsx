@@ -56,16 +56,25 @@ export function MeasurementCapture({ videoRef, isActive }: Props) {
 
 const wrapperStyle: React.CSSProperties = {
   position: 'absolute',
-  inset: 0,
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
   display: 'flex',
   flexDirection: 'column',
   justifyContent: 'flex-end',
   pointerEvents: 'none',
+  zIndex: 10,
+  WebkitTransform: 'translateZ(0)',
+  transform: 'translateZ(0)',
 }
 
 const processingOverlayStyle: React.CSSProperties = {
   position: 'absolute',
-  inset: 0,
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
   background: 'rgba(0,0,0,0.75)',
   display: 'flex',
   flexDirection: 'column',
