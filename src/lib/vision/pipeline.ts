@@ -8,7 +8,8 @@ const CARD_RATIO_TOLERANCE = 0.12
 
 export interface MeasurementResult {
   lengthCm: string
-  widthCm: string
+  widthCm: string         // diameter (kept for debug line)
+  circumferenceCm: string // π × diameter
   marginOfErrorMm: number
   /** Debug: pixels-per-mm derived from card. ~8-12 for typical phone photos. */
   pxPerMm: number
@@ -120,7 +121,7 @@ function rectsOverlap(rect: any, cardRect: any, threshold = 0.3): boolean {
  * Uses OTSU thresholding (light background → dark object) instead of skin segmentation,
  * so it works for any object color on a white/light background.
  */
-function findSubjectByContrast(src: any, cardBoundingRect: any | null): any | null {
+function findSubjectByContrast(src: any, cardBoundingRect: any | null, pxPerMm: number): any | null {
   const C = cv()
   let gray: any, blurred: any, binary: any, closed: any, contours: any, hierarchy: any, kernel: any
 
@@ -152,7 +153,8 @@ function findSubjectByContrast(src: any, cardBoundingRect: any | null): any | nu
       const contour = contours.get(i)
       const area = C.contourArea(contour)
 
-      if (area < 2000) continue
+      const cardAreaPx = CARD_WIDTH_MM * CARD_HEIGHT_MM * pxPerMm * pxPerMm * 0.15
+      if (area < Math.max(2000, cardAreaPx)) continue
       // Reject very large background regions (table ring surrounding paper)
       if (area > imgArea * 0.40) continue
 
@@ -196,8 +198,9 @@ function computeMeasurements(subject: any, pxPerMm: number): MeasurementResult {
   const widthMm = subject.size.width / pxPerMm
   const lengthCm = (lengthMm / 10).toFixed(1)
   const widthCm = (widthMm / 10).toFixed(1)
+  const circumferenceCm = (Math.PI * widthMm / 10).toFixed(1)
   const marginOfErrorMm = Math.round(lengthMm * 0.04)
-  return { lengthCm, widthCm, marginOfErrorMm, pxPerMm: Math.round(pxPerMm * 10) / 10 }
+  return { lengthCm, widthCm, circumferenceCm, marginOfErrorMm, pxPerMm: Math.round(pxPerMm * 10) / 10 }
 }
 
 /**
@@ -227,7 +230,7 @@ export async function runPipeline(imageData: ImageData): Promise<PipelineResult>
     const pxMm = pixelsPerMm(cardResult.rotated)
 
     // 2. Find subject by contrast (OTSU threshold — works for any color on light background)
-    const subject = findSubjectByContrast(src, cardResult.boundingRect)
+    const subject = findSubjectByContrast(src, cardResult.boundingRect, pxMm)
     if (!subject) {
       return { measurements: null, error: 'Objeto não detectado. Use fundo claro e certifique-se de que o objeto está visível.' }
     }

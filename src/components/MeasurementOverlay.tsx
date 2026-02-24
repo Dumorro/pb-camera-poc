@@ -12,7 +12,10 @@ export function MeasurementOverlay({ validation }: Props) {
     <div style={overlayStyle}>
       {/* Subject guide — left-center, ~35% wide × 75% tall */}
       <div style={subjectGuideStyle}>
-        <span style={guideLabelStyle}>Objeto</span>
+        <div style={subjectLabelGroupStyle}>
+          <span style={guideLabelStyle}>Objeto</span>
+          <span style={guideHintStyle}>deitado de lado</span>
+        </div>
       </div>
 
       {/* Card guide — right side, ~18% wide × 11% tall, credit card aspect */}
@@ -91,6 +94,19 @@ const guideLabelStyle: React.CSSProperties = {
   textShadow: '0 1px 4px rgba(0,0,0,0.9)',
 }
 
+const subjectLabelGroupStyle: React.CSSProperties = {
+  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px',
+}
+
+const guideHintStyle: React.CSSProperties = {
+  fontSize: '0.55rem',
+  color: 'rgba(255,255,255,0.75)',
+  letterSpacing: '0.04em',
+  userSelect: 'none',
+  textShadow: '0 1px 4px rgba(0,0,0,0.9)',
+  textTransform: 'lowercase',
+}
+
 const statusDotsStyle: React.CSSProperties = {
   position: 'absolute',
   top: '10px',
@@ -125,8 +141,6 @@ const feedbackBarStyle: React.CSSProperties = {
   left: 0,
   right: 0,
   padding: '10px 16px',
-  backdropFilter: 'blur(8px)',
-  WebkitBackdropFilter: 'blur(8px)',
   textAlign: 'center',
   transition: 'background 0.3s',
 }

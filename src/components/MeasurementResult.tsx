@@ -5,8 +5,15 @@ interface Props {
   onReset: () => void
 }
 
+const TOP_VIEW_RATIO_THRESHOLD = 0.75
+
 export function MeasurementResult({ result, onReset }: Props) {
-  const { lengthCm, widthCm, marginOfErrorMm } = result
+  const { lengthCm, widthCm, circumferenceCm, marginOfErrorMm } = result
+
+  const length = parseFloat(lengthCm)
+  const width = parseFloat(widthCm)
+  const aspectRatio = length > 0 ? width / length : 0
+  const likelyTopView = aspectRatio > TOP_VIEW_RATIO_THRESHOLD
 
   return (
     <div style={containerStyle}>
@@ -18,17 +25,29 @@ export function MeasurementResult({ result, onReset }: Props) {
           <span style={metricValueStyle}>{lengthCm} <small style={unitStyle}>cm</small></span>
         </div>
         <div style={metricCardStyle}>
-          <span style={metricLabelStyle}>Diâmetro</span>
-          <span style={metricValueStyle}>{widthCm} <small style={unitStyle}>cm</small></span>
+          <span style={metricLabelStyle}>Circunferência</span>
+          <span style={metricValueStyle}>{circumferenceCm} <small style={unitStyle}>cm</small></span>
+          <span style={metricSubLabelStyle}>(π × diâm.)</span>
         </div>
       </div>
+
+      {likelyTopView && (
+        <div style={topViewWarningStyle}>
+          <span style={topViewIconStyle}>⚠️</span>
+          <p style={topViewTextStyle}>
+            O objeto parece visto de cima. Se for cilíndrico (garrafa, frasco, tubo),{' '}
+            <strong>deite-o sobre a folha</strong> para medir o comprimento e a
+            circunferência corretamente.
+          </p>
+        </div>
+      )}
 
       <p style={disclaimerStyle}>
         Margem de erro estimada: ±{marginOfErrorMm} mm.
         Resultados são aproximados — iluminação, ângulo e segmentação afetam a precisão.
       </p>
       <p style={debugStyle}>
-        Escala do cartão: {result.pxPerMm} px/mm
+        Diâm. {widthCm} cm · Escala do cartão: {result.pxPerMm} px/mm
         {result.pxPerMm < 5 ? ' · ⚠️ Câmera distante — aproxime o cartão para mais precisão' : result.pxPerMm > 15 ? ' · ⚠️ Câmera muito próxima do cartão' : ' · ✓ Escala OK'}
       </p>
 
@@ -81,6 +100,12 @@ const metricLabelStyle: React.CSSProperties = {
   letterSpacing: '0.08em',
 }
 
+const metricSubLabelStyle: React.CSSProperties = {
+  fontSize: '0.6rem',
+  color: '#666',
+  marginTop: '2px',
+}
+
 const metricValueStyle: React.CSSProperties = {
   fontSize: '2rem',
   fontWeight: 700,
@@ -107,6 +132,24 @@ const debugStyle: React.CSSProperties = {
   fontSize: '0.65rem',
   color: '#444',
   textAlign: 'center',
+}
+
+const topViewWarningStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: '10px',
+  padding: '12px 14px',
+  background: 'rgba(255, 200, 0, 0.08)',
+  border: '1px solid rgba(255, 200, 0, 0.35)',
+  borderRadius: '10px',
+}
+
+const topViewIconStyle: React.CSSProperties = {
+  fontSize: '1.1rem', flexShrink: 0, lineHeight: 1.4,
+}
+
+const topViewTextStyle: React.CSSProperties = {
+  margin: 0, fontSize: '0.78rem', color: '#d4b800', lineHeight: 1.55,
 }
 
 const resetBtnStyle: React.CSSProperties = {
