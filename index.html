@@ -1,18 +1,1200 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="theme-color" content="#000000" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-    <link rel="manifest" href="/manifest.json" />
-    <title>P&amp;B Camera PoC</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>P&B Camera PoC — Measurement</title>
+<style>
+/* ===== RESET & BASE ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #000; color: #fff;
+  display: flex; flex-direction: column; align-items: center;
+  -webkit-user-select: none; user-select: none;
+}
+
+/* ===== HEADER ===== */
+.header {
+  text-align: center; padding: 8px 0 4px; flex-shrink: 0; width: 100%;
+  background: linear-gradient(180deg, rgba(30,30,30,0.95), rgba(20,20,20,0.85));
+}
+.header h1 { font-size: 20px; font-weight: 800; letter-spacing: 1px; }
+.header .subtitle { font-size: 11px; color: #888; letter-spacing: 2px; margin-top: 2px; }
+
+/* ===== VIEWFINDER ===== */
+.viewfinder-container {
+  position: relative; flex: 1; width: 100%; max-width: 480px;
+  overflow: hidden; background: #111; border-radius: 8px; margin: 4px 8px;
+}
+#video {
+  width: 100%; height: 100%; object-fit: cover;
+  display: block; background: #000;
+}
+#guideCanvas {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 2;
+  transform: translateZ(0); /* iOS compositing fix */
+}
+
+/* ===== INDICATORS (top-right of viewfinder) ===== */
+.indicators {
+  position: absolute; top: 8px; right: 10px; z-index: 3;
+  display: flex; flex-direction: column; gap: 4px; align-items: flex-end;
+}
+.indicator {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 12px; font-weight: 600; color: #ccc;
+}
+.indicator .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  display: inline-block; flex-shrink: 0;
+}
+.dot-green { background: #4caf50; box-shadow: 0 0 4px #4caf50; }
+.dot-gray { background: #555; }
+.dot-yellow { background: #ffc107; box-shadow: 0 0 4px #ffc107; }
+.dot-red { background: #f44336; box-shadow: 0 0 4px #f44336; }
+
+/* ===== QUALITY BANNER (bottom-left of viewfinder) ===== */
+.quality-banner {
+  position: absolute; bottom: 8px; left: 10px; z-index: 3;
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: #ccc;
+}
+.quality-banner .check {
+  width: 20px; height: 20px; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px;
+}
+.check-good { background: #4caf50; color: #fff; }
+.check-bad { background: #555; color: #999; }
+
+/* ===== CONTROLS ===== */
+.controls { flex-shrink: 0; width: 100%; max-width: 480px; padding: 8px 16px 4px; text-align: center; }
+.btn-capture {
+  display: inline-block; padding: 12px 40px; font-size: 16px; font-weight: 700;
+  border: 2px solid #fff; border-radius: 30px; background: transparent; color: #fff;
+  cursor: pointer; margin-bottom: 8px; transition: background 0.15s;
+}
+.btn-capture:active { background: rgba(255,255,255,0.15); }
+.btn-capture:disabled { opacity: 0.4; cursor: default; }
+.btn-row {
+  display: flex; gap: 10px; justify-content: center; margin-bottom: 6px;
+}
+.btn-secondary {
+  flex: 1; max-width: 120px; padding: 8px 0; font-size: 13px; font-weight: 600;
+  border: 1px solid #555; border-radius: 8px; background: transparent; color: #ccc;
+  cursor: pointer; transition: background 0.15s;
+}
+.btn-secondary:active { background: rgba(255,255,255,0.1); }
+.btn-exit { border-color: #c62828; color: #ef5350; }
+
+/* ===== WASM INDICATOR ===== */
+.wasm-status {
+  font-size: 12px; color: #4caf50; padding: 4px 0 8px;
+  text-align: center; flex-shrink: 0;
+}
+.wasm-status.loading { color: #ffc107; }
+.wasm-status.error { color: #f44336; }
+
+/* ===== RESULT MODE ===== */
+.result-container {
+  display: none; flex-direction: column; align-items: center;
+  width: 100%; max-width: 480px; height: 100%;
+  overflow-y: auto; padding: 8px 12px 16px;
+}
+.result-container.active { display: flex; }
+.viewfinder-mode.hidden { display: none !important; }
+
+#resultCanvas {
+  width: 100%; max-height: 55vh; object-fit: contain;
+  border-radius: 8px; background: #111;
+}
+.result-value {
+  font-size: 36px; font-weight: 800; margin: 10px 0 4px;
+  letter-spacing: 1px;
+}
+.result-confidence {
+  font-size: 14px; color: #aaa; margin-bottom: 8px;
+}
+.result-confidence.high { color: #4caf50; }
+.result-confidence.low { color: #ffc107; }
+
+.banner {
+  width: 100%; padding: 8px 12px; border-radius: 6px;
+  font-size: 13px; margin-bottom: 8px; text-align: center;
+}
+.banner-warning { background: rgba(255,193,7,0.15); color: #ffc107; border: 1px solid rgba(255,193,7,0.3); }
+.banner-error { background: rgba(244,67,54,0.15); color: #ef5350; border: 1px solid rgba(244,67,54,0.3); }
+
+.btn-new-measure {
+  padding: 12px 36px; font-size: 15px; font-weight: 700;
+  border: 2px solid #4caf50; border-radius: 30px;
+  background: transparent; color: #4caf50; cursor: pointer;
+  margin: 8px 0;
+}
+.btn-new-measure:active { background: rgba(76,175,80,0.15); }
+
+/* ===== DEBUG PANEL ===== */
+.debug-panel {
+  width: 100%; margin-top: 8px;
+}
+.debug-panel summary {
+  font-size: 13px; color: #888; cursor: pointer; padding: 4px 0;
+}
+.debug-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px;
+}
+.debug-grid .debug-cell canvas {
+  width: 100%; border-radius: 4px; background: #222; display: block;
+}
+.debug-grid .debug-cell .label {
+  font-size: 10px; color: #888; text-align: center; margin-top: 2px;
+}
+.debug-metrics {
+  font-size: 11px; color: #aaa; font-family: monospace;
+  white-space: pre-wrap; margin-top: 8px; padding: 6px;
+  background: #111; border-radius: 4px;
+}
+</style>
+</head>
+<body>
+
+<!-- ===== VIEWFINDER MODE ===== -->
+<div class="viewfinder-mode" id="viewfinderMode">
+  <div class="header">
+    <h1>P&B Camera PoC</h1>
+    <div class="subtitle">PWA &middot; WASM &middot; CAMERA 1X</div>
+  </div>
+
+  <div class="viewfinder-container" id="viewfinderContainer">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="guideCanvas"></canvas>
+
+    <div class="indicators">
+      <div class="indicator">
+        <span>Referencia</span>
+        <span class="dot dot-gray" id="dotRef"></span>
+      </div>
+      <div class="indicator">
+        <span>Iluminacao</span>
+        <span class="dot dot-gray" id="dotLight"></span>
+      </div>
+    </div>
+
+    <div class="quality-banner" id="qualityBanner">
+      <div class="check check-bad" id="qualityCheck">&#10003;</div>
+      <div>
+        <div id="qualityText">Boa qualidade</div>
+        <div id="brightnessText" style="font-size:11px; color:#777;">Brilho: &mdash;</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn-capture" id="btnCapture" disabled>Fotografar</button>
+    <div class="btn-row">
+      <button class="btn-secondary" id="btnStop">Parar</button>
+      <button class="btn-secondary" id="btnFlip">Frontal</button>
+      <button class="btn-secondary btn-exit" id="btnExit">Sair</button>
+    </div>
+  </div>
+
+  <div class="wasm-status loading" id="wasmStatus">Carregando OpenCV.js...</div>
+</div>
+
+<!-- ===== RESULT MODE ===== -->
+<div class="result-container" id="resultMode">
+  <div class="header" style="width:100%;">
+    <h1>P&B Camera PoC</h1>
+    <div class="subtitle">RESULTADO</div>
+  </div>
+
+  <canvas id="resultCanvas"></canvas>
+
+  <div class="result-value" id="resultValue">&mdash;</div>
+  <div class="result-confidence" id="resultConfidence"></div>
+
+  <div id="bannerArea"></div>
+
+  <button class="btn-new-measure" id="btnNewMeasure">Nova Medida</button>
+
+  <details class="debug-panel" id="debugPanel">
+    <summary>Debug &mdash; Pipeline Intermediarios</summary>
+    <div class="debug-grid">
+      <div class="debug-cell"><canvas id="dbgGray" width="160" height="120"></canvas><div class="label">Grayscale</div></div>
+      <div class="debug-cell"><canvas id="dbgClahe" width="160" height="120"></canvas><div class="label">CLAHE</div></div>
+      <div class="debug-cell"><canvas id="dbgCanny" width="160" height="120"></canvas><div class="label">Canny Edges</div></div>
+      <div class="debug-cell"><canvas id="dbgCardCandidates" width="160" height="120"></canvas><div class="label">Card Candidates</div></div>
+      <div class="debug-cell"><canvas id="dbgSkinMask" width="160" height="120"></canvas><div class="label">Skin Mask</div></div>
+      <div class="debug-cell"><canvas id="dbgRoi" width="160" height="120"></canvas><div class="label">ROI + Contour</div></div>
+    </div>
+    <div class="debug-metrics" id="debugMetrics"></div>
+  </details>
+</div>
+
+<!-- Hidden canvas for capture processing -->
+<canvas id="processCanvas" style="display:none;"></canvas>
+
+<!-- ===== OPENCV.JS FROM CDN ===== -->
+<script async src="https://docs.opencv.org/4.9.0/opencv.js" type="text/javascript"></script>
+
+<script>
+/*
+ * P&B Camera PoC — Measurement with OpenCV.js
+ * =============================================
+ * ALL PROCESSING IS LOCAL. No image data ever leaves the browser.
+ * No fetch, no XHR, no WebSocket, no postMessage to external origins.
+ *
+ * Uses classical computer vision (Canny, contours, HSV skin detection)
+ * with a credit card as a known-size reference object (ISO 7810 ID-1).
+ */
+
+// ===== CONSTANTS =====
+const CARD_WIDTH_MM  = 85.60;  // ISO 7810 ID-1 long edge
+const CARD_HEIGHT_MM = 53.98;  // ISO 7810 ID-1 short edge
+const CARD_ASPECT     = CARD_WIDTH_MM / CARD_HEIGHT_MM; // ~1.586
+const CARD_ASPECT_INV = 1 / CARD_ASPECT;                // ~0.631
+
+// ===== DOM REFS =====
+const videoEl         = document.getElementById('video');
+const guideCanvas     = document.getElementById('guideCanvas');
+const processCanvas   = document.getElementById('processCanvas');
+const resultCanvasEl  = document.getElementById('resultCanvas');
+const viewfinderMode  = document.getElementById('viewfinderMode');
+const resultModeEl    = document.getElementById('resultMode');
+const btnCapture      = document.getElementById('btnCapture');
+const btnStop         = document.getElementById('btnStop');
+const btnFlip         = document.getElementById('btnFlip');
+const btnExit         = document.getElementById('btnExit');
+const btnNewMeasure   = document.getElementById('btnNewMeasure');
+const dotRef          = document.getElementById('dotRef');
+const dotLight        = document.getElementById('dotLight');
+const qualityCheck    = document.getElementById('qualityCheck');
+const qualityText     = document.getElementById('qualityText');
+const brightnessText  = document.getElementById('brightnessText');
+const wasmStatus      = document.getElementById('wasmStatus');
+const resultValue     = document.getElementById('resultValue');
+const resultConfidence = document.getElementById('resultConfidence');
+const bannerArea      = document.getElementById('bannerArea');
+const debugMetrics    = document.getElementById('debugMetrics');
+
+// Debug canvases
+const dbgGray           = document.getElementById('dbgGray');
+const dbgClahe          = document.getElementById('dbgClahe');
+const dbgCanny          = document.getElementById('dbgCanny');
+const dbgCardCandidates = document.getElementById('dbgCardCandidates');
+const dbgSkinMask       = document.getElementById('dbgSkinMask');
+const dbgRoi            = document.getElementById('dbgRoi');
+
+// ===== STATE =====
+let stream            = null;
+let facingMode        = 'environment';
+let guideLoopRunning  = false;
+let brightnessInterval = null;
+let currentBrightness = 0;
+let cvReady           = false;
+
+// ============================================================
+// OPENCV.JS INITIALIZATION
+// ============================================================
+
+function waitForOpenCV() {
+  return new Promise((resolve, reject) => {
+    // Already loaded and ready?
+    if (typeof cv !== 'undefined' && cv.Mat) {
+      resolve();
+      return;
+    }
+
+    // Poll for the cv global to appear
+    const checkGlobal = setInterval(() => {
+      if (typeof cv !== 'undefined') {
+        clearInterval(checkGlobal);
+        // cv exists — but runtime may not be initialized yet
+        if (cv.Mat) {
+          resolve();
+        } else {
+          // Hook into the runtime callback
+          const prevCallback = cv['onRuntimeInitialized'];
+          cv['onRuntimeInitialized'] = () => {
+            if (prevCallback) prevCallback();
+            resolve();
+          };
+        }
+      }
+    }, 100);
+
+    // Timeout after 60s
+    setTimeout(() => {
+      clearInterval(checkGlobal);
+      reject(new Error('OpenCV.js load timeout'));
+    }, 60000);
+  });
+}
+
+waitForOpenCV().then(() => {
+  cvReady = true;
+  wasmStatus.textContent = 'WASM ativo';
+  wasmStatus.className = 'wasm-status';
+  btnCapture.disabled = false;
+  startCamera();
+}).catch(err => {
+  console.error('OpenCV load failed:', err);
+  wasmStatus.textContent = 'Nao foi possivel carregar o motor de medicao. Verifique sua conexao.';
+  wasmStatus.className = 'wasm-status error';
+});
+
+// ============================================================
+// CAMERA MANAGEMENT
+// ============================================================
+
+async function startCamera() {
+  try {
+    if (stream) stopCamera();
+
+    // Try rear camera first
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: facingMode },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      },
+      audio: false
+    });
+
+    videoEl.srcObject = stream;
+    await videoEl.play();
+    guideLoopRunning = true;
+    requestAnimationFrame(drawGuideLoop);
+    startBrightnessCheck();
+    btnCapture.disabled = !cvReady;
+  } catch (err) {
+    console.warn('Preferred camera failed, trying any camera:', err);
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      videoEl.srcObject = stream;
+      await videoEl.play();
+      guideLoopRunning = true;
+      requestAnimationFrame(drawGuideLoop);
+      startBrightnessCheck();
+      btnCapture.disabled = !cvReady;
+    } catch (err2) {
+      console.error('All cameras failed:', err2);
+      alert('Acesso a camera necessario para medir.');
+    }
+  }
+}
+
+function stopCamera() {
+  guideLoopRunning = false;
+  if (brightnessInterval) {
+    clearInterval(brightnessInterval);
+    brightnessInterval = null;
+  }
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+  videoEl.srcObject = null;
+}
+
+function switchCamera() {
+  facingMode = facingMode === 'environment' ? 'user' : 'environment';
+  btnFlip.textContent = facingMode === 'environment' ? 'Frontal' : 'Traseira';
+  startCamera();
+}
+
+// ============================================================
+// GUIDE OVERLAY LOOP
+// ============================================================
+
+function drawGuideLoop() {
+  if (!guideLoopRunning) return;
+
+  const ctx = guideCanvas.getContext('2d');
+  const W = guideCanvas.width = videoEl.videoWidth || videoEl.clientWidth;
+  const H = guideCanvas.height = videoEl.videoHeight || videoEl.clientHeight;
+  ctx.clearRect(0, 0, W, H);
+
+  if (W < 10 || H < 10) {
+    requestAnimationFrame(drawGuideLoop);
+    return;
+  }
+
+  const bottomMargin = H * 0.04;
+
+  // Card guide: landscape rectangle (wider than tall)
+  const cardW = W * 0.40;
+  const cardH = cardW / 1.586;
+  const cardX = (W - cardW) / 2;
+  const cardY = H - bottomMargin - cardH;
+
+  // Object guide: narrower and taller, extends above card
+  const objW = cardW * 0.55;
+  const objH = cardH * 3.5;
+  const objX = (W - objW) / 2;
+  const objY = H - bottomMargin - objH;
+
+  // Draw object guide (white dashed)
+  ctx.setLineDash([12, 8]);
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(objX, objY, objW, objH);
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.font = 'bold 12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('OBJETO', W / 2, objY + 16);
+
+  // Draw card guide (yellow dashed, landscape, wider than object)
+  ctx.setLineDash([10, 6]);
+  ctx.strokeStyle = 'rgba(255,200,0,0.8)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(cardX, cardY, cardW, cardH);
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(255,200,0,0.8)';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillText('CARTAO', W / 2, cardY + cardH / 2 + 4);
+
+  requestAnimationFrame(drawGuideLoop);
+}
+
+// ============================================================
+// BRIGHTNESS CHECK (every ~200ms)
+// ============================================================
+
+function startBrightnessCheck() {
+  if (brightnessInterval) clearInterval(brightnessInterval);
+
+  const tinyCanvas = document.createElement('canvas');
+  tinyCanvas.width = 64;
+  tinyCanvas.height = 48;
+  const tCtx = tinyCanvas.getContext('2d', { willReadFrequently: true });
+
+  brightnessInterval = setInterval(() => {
+    if (!stream || videoEl.readyState < 2) return;
+
+    tCtx.drawImage(videoEl, 0, 0, 64, 48);
+    const data = tCtx.getImageData(0, 0, 64, 48).data;
+    let sum = 0;
+    const totalPixels = 64 * 48;
+    for (let i = 0; i < data.length; i += 4) {
+      sum += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    }
+    currentBrightness = sum / (totalPixels * 255);
+    const pct = Math.round(currentBrightness * 100);
+
+    brightnessText.textContent = 'Brilho: ' + pct + '%';
+
+    // Light indicator
+    if (pct > 35) {
+      dotLight.className = 'dot dot-green';
+    } else if (pct > 15) {
+      dotLight.className = 'dot dot-yellow';
+    } else {
+      dotLight.className = 'dot dot-red';
+    }
+
+    // Quality banner
+    if (pct > 25) {
+      qualityCheck.className = 'check check-good';
+      qualityText.textContent = 'Boa qualidade';
+    } else {
+      qualityCheck.className = 'check check-bad';
+      qualityText.textContent = 'Ambiente escuro';
+    }
+  }, 200);
+}
+
+// ============================================================
+// CAPTURE & PIPELINE ENTRY
+// ============================================================
+
+function captureFrame() {
+  if (!cvReady || !stream || videoEl.readyState < 2) return;
+
+  const w = videoEl.videoWidth;
+  const h = videoEl.videoHeight;
+
+  // Resolution check
+  if (Math.min(w, h) < 480) {
+    showResult({ error: 'Resolucao muito baixa. Use uma foto de maior qualidade.' });
+    return;
+  }
+
+  // Draw current frame to hidden canvas at full resolution
+  processCanvas.width = w;
+  processCanvas.height = h;
+  const pCtx = processCanvas.getContext('2d', { willReadFrequently: true });
+  pCtx.drawImage(videoEl, 0, 0, w, h);
+
+  // Pause guide loop during processing
+  guideLoopRunning = false;
+
+  // Run detection pipeline
+  runPipeline(w, h);
+}
+
+function runPipeline(width, height) {
+  let src = null;
+  let preprocessResult = null;
+  let cardResult = null;
+  let tipResult = null;
+
+  try {
+    // Read captured frame into cv.Mat
+    src = cv.imread(processCanvas);
+
+    // Step 1: Preprocess
+    preprocessResult = preprocessImage(src);
+
+    // Step 2: Detect card
+    cardResult = detectCard(preprocessResult.clahe, src);
+
+    if (!cardResult) {
+      showResult({ error: 'Cartao nao detectado. Certifique-se que o cartao inteiro esta visivel e bem iluminado.' });
+      return;
+    }
+
+    // Draw card candidates debug
+    drawCardCandidatesDebug(src, cardResult);
+
+    // Step 3: Detect tip above card
+    tipResult = detectPenisTip(src, cardResult);
+
+    if (!tipResult) {
+      // Show partial result with card detected but no tip
+      drawPartialOverlay(resultCanvasEl, src, cardResult);
+      showResult({
+        error: 'Area de medicao nao detectada. Melhore a iluminacao e o contraste.',
+        partial: true
+      });
+      return;
+    }
+
+    // Step 4: Compute measurement
+    const measurement = computeMeasurement(cardResult.bottomEdge, tipResult.tip, cardResult.pxPerMm);
+
+    // Step 5: Draw full overlay on result canvas
+    drawOverlay(resultCanvasEl, src, cardResult.corners, tipResult.tip,
+                cardResult.bottomEdge, measurement.lengthCm, cardResult.perspectiveOk);
+
+    // Debug metrics
+    debugMetrics.textContent =
+      'px_per_mm: ' + cardResult.pxPerMm.toFixed(3) + '\n' +
+      'px_per_mm_w: ' + cardResult.pxPerMmW.toFixed(3) + '\n' +
+      'px_per_mm_h: ' + cardResult.pxPerMmH.toFixed(3) + '\n' +
+      'card aspect: ' + cardResult.aspect.toFixed(3) + ' (expected ~' + CARD_ASPECT.toFixed(3) + ')\n' +
+      'card orientation: ' + (cardResult.isLandscape ? 'landscape' : 'portrait') + '\n' +
+      'perspective ok: ' + cardResult.perspectiveOk + '\n' +
+      'skin area: ' + tipResult.skinArea + ' px\n' +
+      'tip: (' + tipResult.tip.x + ', ' + tipResult.tip.y + ')\n' +
+      'origin: (' + cardResult.bottomEdge.centerX.toFixed(0) + ', ' + cardResult.bottomEdge.y.toFixed(0) + ')\n' +
+      'length_px: ' + measurement.lengthPx.toFixed(1) + '\n' +
+      'length_mm: ' + measurement.lengthMm.toFixed(1) + '\n' +
+      'length_cm: ' + measurement.lengthCm;
+
+    showResult({
+      lengthCm: measurement.lengthCm,
+      perspectiveOk: cardResult.perspectiveOk
+    });
+
+  } catch (err) {
+    console.error('Pipeline error:', err);
+    showResult({ error: 'Erro no processamento: ' + err.message });
+  } finally {
+    // Clean up
+    if (src) src.delete();
+    if (preprocessResult) {
+      if (preprocessResult.gray) preprocessResult.gray.delete();
+      if (preprocessResult.blurred) preprocessResult.blurred.delete();
+      if (preprocessResult.clahe) preprocessResult.clahe.delete();
+    }
+  }
+}
+
+// ============================================================
+// STEP 1: PREPROCESS IMAGE
+// ============================================================
+
+function preprocessImage(src) {
+  let gray = new cv.Mat();
+  let blurred = new cv.Mat();
+  let claheResult = new cv.Mat();
+
+  try {
+    // 1. RGBA -> Grayscale
+    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+
+    // 2. Gaussian blur 5x5
+    cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
+
+    // 3. CLAHE (contrast-limited adaptive histogram equalization)
+    //    Fallback to equalizeHist if CLAHE is not available in this build
+    if (typeof cv.CLAHE !== 'undefined') {
+      let clahe = new cv.CLAHE(2.0, new cv.Size(8, 8));
+      clahe.apply(blurred, claheResult);
+      clahe.delete();
+    } else {
+      cv.equalizeHist(blurred, claheResult);
+    }
+
+    // Debug output
+    drawDebugCanvas(dbgGray, gray);
+    drawDebugCanvas(dbgClahe, claheResult);
+
+    // Caller owns these Mats and must delete them
+    return { gray: gray, blurred: blurred, clahe: claheResult };
+
+  } catch (err) {
+    gray.delete();
+    blurred.delete();
+    claheResult.delete();
+    throw err;
+  }
+}
+
+// ============================================================
+// STEP 2: DETECT CARD
+// ============================================================
+
+function detectCard(preprocessed, original) {
+  let canny = new cv.Mat();
+  let dilated = new cv.Mat();
+  let contours = new cv.MatVector();
+  let hierarchy = new cv.Mat();
+  let kernel = null;
+
+  try {
+    // 1. Canny edge detection
+    cv.Canny(preprocessed, canny, 50, 150);
+
+    // 2. Dilate to close small gaps (3x3, 1 iteration)
+    kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3));
+    cv.dilate(canny, dilated, kernel, new cv.Point(-1, -1), 1);
+
+    // Debug: Canny
+    drawDebugCanvas(dbgCanny, canny);
+
+    // 3. Find contours
+    cv.findContours(dilated, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+    const imgArea = original.rows * original.cols;
+    let bestCandidate = null;
+    let bestDeviation = Infinity;
+
+    // 4. Evaluate each contour
+    for (let i = 0; i < contours.size(); i++) {
+      let contour = contours.get(i);
+      let peri = cv.arcLength(contour, true);
+      let approx = new cv.Mat();
+
+      try {
+        // 4a. Approximate polygon — epsilon = 2% of perimeter
+        cv.approxPolyDP(contour, approx, 0.02 * peri, true);
+
+        // 4b. Must have exactly 4 vertices
+        if (approx.rows !== 4) continue;
+
+        // 4c. Must be convex
+        if (!cv.isContourConvex(approx)) continue;
+
+        // 4d. Area: 1%-50% of image
+        let area = cv.contourArea(approx);
+        if (area < imgArea * 0.01 || area > imgArea * 0.50) continue;
+
+        // 4e. Aspect ratio check
+        let rect = cv.boundingRect(approx);
+        let aspect = rect.width / rect.height;
+
+        let devLandscape = Math.abs(aspect - CARD_ASPECT) / CARD_ASPECT;
+        let devPortrait = Math.abs(aspect - CARD_ASPECT_INV) / CARD_ASPECT_INV;
+        let minDev = Math.min(devLandscape, devPortrait);
+
+        if (minDev > 0.35) continue;
+
+        // 5. Select best: lowest aspect deviation, tiebreak by area
+        if (minDev < bestDeviation ||
+            (minDev === bestDeviation && area > (bestCandidate ? bestCandidate.area : 0))) {
+
+          // Extract corners
+          let pts = [];
+          for (let j = 0; j < 4; j++) {
+            pts.push({ x: approx.intAt(j, 0), y: approx.intAt(j, 1) });
+          }
+
+          bestCandidate = {
+            corners: orderCorners(pts),
+            rect: rect,
+            aspect: aspect,
+            area: area,
+            isLandscape: devLandscape <= devPortrait,
+            deviation: minDev
+          };
+          bestDeviation = minDev;
+        }
+      } finally {
+        approx.delete();
+      }
+    }
+
+    if (!bestCandidate) return null;
+
+    // 7. Compute px_per_mm from original edge lengths
+    let c = bestCandidate.corners; // [TL, TR, BR, BL]
+    let topEdgePx    = Math.hypot(c[1].x - c[0].x, c[1].y - c[0].y);
+    let bottomEdgePx = Math.hypot(c[2].x - c[3].x, c[2].y - c[3].y);
+    let leftEdgePx   = Math.hypot(c[3].x - c[0].x, c[3].y - c[0].y);
+    let rightEdgePx  = Math.hypot(c[2].x - c[1].x, c[2].y - c[1].y);
+
+    let horizPx = (topEdgePx + bottomEdgePx) / 2;
+    let vertPx  = (leftEdgePx + rightEdgePx) / 2;
+
+    let pxPerMmW, pxPerMmH;
+    if (bestCandidate.isLandscape) {
+      pxPerMmW = horizPx / CARD_WIDTH_MM;   // horizontal edge = 85.60mm
+      pxPerMmH = vertPx / CARD_HEIGHT_MM;   // vertical edge = 53.98mm
+    } else {
+      // Portrait: horizontal = 53.98mm, vertical = 85.60mm
+      pxPerMmW = horizPx / CARD_HEIGHT_MM;
+      pxPerMmH = vertPx / CARD_WIDTH_MM;
+    }
+    let pxPerMm = (pxPerMmW + pxPerMmH) / 2;
+
+    // 9. Perspective validation
+    let perspectiveOk = bestCandidate.deviation <= 0.25;
+
+    // 8. cardBottomEdge = max Y among the 4 corners
+    let sortedByY = [...bestCandidate.corners].sort((a, b) => b.y - a.y);
+    let bottomTwo = sortedByY.slice(0, 2);
+    let bottomEdge = {
+      y: Math.max(bottomTwo[0].y, bottomTwo[1].y),
+      centerX: (bottomTwo[0].x + bottomTwo[1].x) / 2
+    };
+
+    // Top edge Y for ROI calculation
+    let topTwo = sortedByY.slice(2, 4);
+    let topEdgeY = Math.min(topTwo[0].y, topTwo[1].y);
+
+    return {
+      corners: bestCandidate.corners,
+      rect: bestCandidate.rect,
+      aspect: bestCandidate.aspect,
+      isLandscape: bestCandidate.isLandscape,
+      pxPerMm: pxPerMm,
+      pxPerMmW: pxPerMmW,
+      pxPerMmH: pxPerMmH,
+      perspectiveOk: perspectiveOk,
+      bottomEdge: bottomEdge,
+      topEdgeY: topEdgeY,
+      area: bestCandidate.area
+    };
+
+  } finally {
+    canny.delete();
+    dilated.delete();
+    contours.delete();
+    hierarchy.delete();
+    if (kernel) kernel.delete();
+  }
+}
+
+// ============================================================
+// CORNER ORDERING — sort into [TL, TR, BR, BL]
+// ============================================================
+
+function orderCorners(pts) {
+  // Sort by Y ascending (top pair first)
+  pts.sort((a, b) => a.y - b.y);
+  let topTwo    = pts.slice(0, 2).sort((a, b) => a.x - b.x);  // left to right
+  let bottomTwo = pts.slice(2, 4).sort((a, b) => a.x - b.x);  // left to right
+  return [topTwo[0], topTwo[1], bottomTwo[1], bottomTwo[0]];
+  // [topLeft, topRight, bottomRight, bottomLeft]
+}
+
+// ============================================================
+// STEP 3: DETECT PENIS TIP (skin detection above card)
+// ============================================================
+
+function detectPenisTip(src, cardResult) {
+  let cornersMat = null;
+  let roi = null, rgb = null, hsv = null;
+  let low1 = null, high1 = null, low2 = null, high2 = null;
+  let mask1 = null, mask2 = null, skinMask = null, morphed = null;
+  let kernel3 = null, kernel5 = null;
+  let contours = null, hierarchy = null;
+
+  try {
+    // 1. Define ROI: everything ABOVE the card
+    let cardRect = cardResult.rect;
+    let roiX = Math.max(0, Math.round(cardRect.x - cardRect.width * 0.5));
+    let roiY = 0;
+    let roiW = Math.min(Math.round(cardRect.width * 2), src.cols - roiX);
+    let roiH = cardRect.y;  // from image top down to card's top edge
+
+    // Guard: too small
+    if (roiH < 20 || roiW < 20) return null;
+
+    // Clamp to image bounds
+    roiW = Math.min(roiW, src.cols - roiX);
+    roiH = Math.min(roiH, src.rows - roiY);
+    if (roiW <= 0 || roiH <= 0) return null;
+
+    // Extract ROI
+    roi = src.roi(new cv.Rect(roiX, roiY, roiW, roiH));
+
+    // 2. RGBA -> RGB -> HSV
+    rgb = new cv.Mat();
+    cv.cvtColor(roi, rgb, cv.COLOR_RGBA2RGB);
+    hsv = new cv.Mat();
+    cv.cvtColor(rgb, hsv, cv.COLOR_RGB2HSV);
+
+    // 3. Skin detection: two HSV ranges (hue wrap-around for skin tones)
+    //    Range 1: H=[0,25], S=[30,170], V=[60,255]
+    //    Range 2: H=[170,180], S=[30,170], V=[60,255]
+    low1  = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [0,   30,  60,  0]);
+    high1 = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [25,  170, 255, 0]);
+    low2  = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [170, 30,  60,  0]);
+    high2 = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [180, 170, 255, 0]);
+
+    mask1    = new cv.Mat();
+    mask2    = new cv.Mat();
+    skinMask = new cv.Mat();
+
+    cv.inRange(hsv, low1, high1, mask1);
+    cv.inRange(hsv, low2, high2, mask2);
+    cv.bitwise_or(mask1, mask2, skinMask);
+
+    // 4. Morphological cleanup
+    kernel3 = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3));
+    kernel5 = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(5, 5));
+    morphed = new cv.Mat();
+
+    cv.erode(skinMask, morphed, kernel3, new cv.Point(-1, -1), 1);   // remove noise
+    cv.dilate(morphed, morphed, kernel5, new cv.Point(-1, -1), 2);   // connect fragments
+
+    // Debug: skin mask
+    drawDebugCanvas(dbgSkinMask, morphed);
+
+    // 5. Find contours -> select largest by area
+    contours  = new cv.MatVector();
+    hierarchy = new cv.Mat();
+    cv.findContours(morphed, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+    if (contours.size() === 0) return null;
+
+    let maxArea = 0, maxIdx = -1;
+    for (let i = 0; i < contours.size(); i++) {
+      let a = cv.contourArea(contours.get(i));
+      if (a > maxArea) { maxArea = a; maxIdx = i; }
+    }
+    if (maxIdx < 0) return null;
+
+    let bestContour = contours.get(maxIdx);
+
+    // 6. Tip = point with smallest Y (topmost = farthest from pelvis)
+    let minY = Infinity, tipX = 0, tipY = 0;
+    for (let i = 0; i < bestContour.rows; i++) {
+      let py = bestContour.intAt(i, 1);
+      if (py < minY) {
+        minY = py;
+        tipX = bestContour.intAt(i, 0);
+        tipY = py;
+      }
+    }
+
+    // Debug: ROI + contour
+    drawRoiDebug(roi, bestContour, { x: tipX, y: tipY });
+
+    // Convert ROI-local coords to full image coords
+    tipX += roiX;
+    tipY += roiY;
+
+    return { tip: { x: tipX, y: tipY }, skinArea: maxArea };
+
+  } finally {
+    if (cornersMat) cornersMat.delete();
+    if (roi) roi.delete();
+    if (rgb) rgb.delete();
+    if (hsv) hsv.delete();
+    if (low1) low1.delete();
+    if (high1) high1.delete();
+    if (low2) low2.delete();
+    if (high2) high2.delete();
+    if (mask1) mask1.delete();
+    if (mask2) mask2.delete();
+    if (skinMask) skinMask.delete();
+    if (morphed) morphed.delete();
+    if (kernel3) kernel3.delete();
+    if (kernel5) kernel5.delete();
+    if (contours) contours.delete();
+    if (hierarchy) hierarchy.delete();
+  }
+}
+
+// ============================================================
+// STEP 4: COMPUTE MEASUREMENT
+// ============================================================
+
+function computeMeasurement(cardBottomEdge, tipPoint, pxPerMm) {
+  // In image coordinates Y increases downward:
+  // cardBottomEdge.y = high Y = bottom of card = penis base
+  // tipPoint.y = low Y = top of frame = penis tip
+  let lengthPx = Math.hypot(
+    tipPoint.x - cardBottomEdge.centerX,
+    cardBottomEdge.y - tipPoint.y
+  );
+  let lengthMm = lengthPx / pxPerMm;
+  let lengthCm = Math.round(lengthMm / 10 * 10) / 10; // 1 decimal
+
+  return { lengthPx: lengthPx, lengthMm: lengthMm, lengthCm: lengthCm };
+}
+
+// ============================================================
+// STEP 5: DRAW RESULT OVERLAY
+// ============================================================
+
+function drawOverlay(canvas, original, cardCorners, tipPoint, cardBottomEdge, lengthCm, perspectiveOk) {
+  canvas.width = original.cols;
+  canvas.height = original.rows;
+
+  let display = original.clone();
+  let cardPts = null, cardVec = null;
+
+  try {
+    // 1. Green polyline around card
+    cardPts = cv.matFromArray(4, 1, cv.CV_32SC2,
+      cardCorners.flatMap(c => [c.x, c.y]));
+    cardVec = new cv.MatVector();
+    cardVec.push_back(cardPts);
+    cv.polylines(display, cardVec, true, new cv.Scalar(0, 255, 0, 255), 3);
+
+    // 2. Yellow dot at measurement origin (card bottom center)
+    let originPt = new cv.Point(Math.round(cardBottomEdge.centerX), Math.round(cardBottomEdge.y));
+    cv.circle(display, originPt, 8, new cv.Scalar(0, 255, 255, 255), -1);
+
+    // 3. Cyan dot at tip
+    let tipPt = new cv.Point(tipPoint.x, tipPoint.y);
+    cv.circle(display, tipPt, 8, new cv.Scalar(255, 255, 0, 255), -1);
+
+    // 4. Green line from origin to tip
+    cv.line(display, originPt, tipPt, new cv.Scalar(0, 255, 0, 255), 2);
+
+    // 5. Measurement label near midpoint (black outline + white text)
+    let midX = Math.round((cardBottomEdge.centerX + tipPoint.x) / 2) + 15;
+    let midY = Math.round((cardBottomEdge.y + tipPoint.y) / 2);
+    let label = lengthCm + ' cm';
+    let labelPt = new cv.Point(midX, midY);
+
+    cv.putText(display, label, labelPt, cv.FONT_HERSHEY_SIMPLEX, 1.2,
+      new cv.Scalar(0, 0, 0, 255), 4);
+    cv.putText(display, label, labelPt, cv.FONT_HERSHEY_SIMPLEX, 1.2,
+      new cv.Scalar(255, 255, 255, 255), 2);
+
+    // 6. Perspective warning
+    if (!perspectiveOk) {
+      cv.putText(display, 'Cartao inclinado', new cv.Point(20, 40),
+        cv.FONT_HERSHEY_SIMPLEX, 0.8, new cv.Scalar(0, 0, 255, 255), 2);
+    }
+
+    // Render to canvas
+    cv.imshow(canvas, display);
+
+  } finally {
+    display.delete();
+    if (cardPts) cardPts.delete();
+    if (cardVec) cardVec.delete();
+  }
+}
+
+// Draw partial overlay (card found, no tip)
+function drawPartialOverlay(canvas, original, cardResult) {
+  canvas.width = original.cols;
+  canvas.height = original.rows;
+
+  let display = original.clone();
+  let cardPts = null, cardVec = null;
+
+  try {
+    cardPts = cv.matFromArray(4, 1, cv.CV_32SC2,
+      cardResult.corners.flatMap(c => [c.x, c.y]));
+    cardVec = new cv.MatVector();
+    cardVec.push_back(cardPts);
+    cv.polylines(display, cardVec, true, new cv.Scalar(0, 255, 0, 255), 3);
+
+    // Yellow dot at bottom edge
+    let originPt = new cv.Point(
+      Math.round(cardResult.bottomEdge.centerX),
+      Math.round(cardResult.bottomEdge.y));
+    cv.circle(display, originPt, 8, new cv.Scalar(0, 255, 255, 255), -1);
+
+    cv.imshow(canvas, display);
+
+  } finally {
+    display.delete();
+    if (cardPts) cardPts.delete();
+    if (cardVec) cardVec.delete();
+  }
+}
+
+// ============================================================
+// DEBUG DRAWING HELPERS
+// ============================================================
+
+function drawDebugCanvas(canvasEl, mat) {
+  if (!mat || mat.isDeleted()) return;
+
+  let display = new cv.Mat();
+  let resized = new cv.Mat();
+
+  try {
+    // Convert to RGBA for cv.imshow
+    if (mat.channels() === 1) {
+      cv.cvtColor(mat, display, cv.COLOR_GRAY2RGBA);
+    } else if (mat.channels() === 3) {
+      cv.cvtColor(mat, display, cv.COLOR_RGB2RGBA);
+    } else {
+      mat.copyTo(display);
+    }
+
+    // Resize to debug canvas dimensions
+    cv.resize(display, resized, new cv.Size(canvasEl.width, canvasEl.height));
+    cv.imshow(canvasEl, resized);
+
+  } finally {
+    display.delete();
+    resized.delete();
+  }
+}
+
+function drawCardCandidatesDebug(src, cardResult) {
+  let display = src.clone();
+  let pts = null, vec = null;
+
+  try {
+    if (cardResult && cardResult.corners) {
+      pts = cv.matFromArray(4, 1, cv.CV_32SC2,
+        cardResult.corners.flatMap(c => [c.x, c.y]));
+      vec = new cv.MatVector();
+      vec.push_back(pts);
+      cv.polylines(display, vec, true, new cv.Scalar(0, 255, 0, 255), 3);
+    }
+    drawDebugCanvas(dbgCardCandidates, display);
+
+  } finally {
+    display.delete();
+    if (pts) pts.delete();
+    if (vec) vec.delete();
+  }
+}
+
+function drawRoiDebug(roi, contour, tipLocal) {
+  let display = roi.clone();
+  let vec = null;
+
+  try {
+    vec = new cv.MatVector();
+    vec.push_back(contour);
+    cv.drawContours(display, vec, 0, new cv.Scalar(0, 255, 0, 255), 2);
+    cv.circle(display, new cv.Point(tipLocal.x, tipLocal.y), 5,
+      new cv.Scalar(255, 255, 0, 255), -1);
+    drawDebugCanvas(dbgRoi, display);
+
+  } finally {
+    display.delete();
+    if (vec) vec.delete();
+  }
+}
+
+// ============================================================
+// UI STATE MANAGEMENT
+// ============================================================
+
+function showResult(result) {
+  // Switch to result mode
+  viewfinderMode.classList.add('hidden');
+  resultModeEl.classList.add('active');
+  bannerArea.innerHTML = '';
+
+  if (result.error) {
+    resultValue.textContent = '\u2014';  // em dash
+    resultConfidence.textContent = '';
+    resultConfidence.className = 'result-confidence';
+
+    let banner = document.createElement('div');
+    banner.className = 'banner banner-error';
+    banner.textContent = result.error;
+    bannerArea.appendChild(banner);
+
+    // If no partial overlay was drawn, show raw capture
+    if (!result.partial) {
+      resultCanvasEl.width = processCanvas.width;
+      resultCanvasEl.height = processCanvas.height;
+      resultCanvasEl.getContext('2d').drawImage(processCanvas, 0, 0);
+    }
+    return;
+  }
+
+  // Success
+  resultValue.textContent = result.lengthCm + ' cm';
+
+  if (result.perspectiveOk) {
+    resultConfidence.textContent = 'Confianca: Alta';
+    resultConfidence.className = 'result-confidence high';
+  } else {
+    resultConfidence.textContent = 'Confianca: Baixa';
+    resultConfidence.className = 'result-confidence low';
+
+    let banner = document.createElement('div');
+    banner.className = 'banner banner-warning';
+    banner.textContent = 'Cartao inclinado \u2014 resultado pode ser impreciso.';
+    bannerArea.appendChild(banner);
+  }
+}
+
+function returnToViewfinder() {
+  resultModeEl.classList.remove('active');
+  viewfinderMode.classList.remove('hidden');
+
+  // Clear result UI
+  resultValue.textContent = '\u2014';
+  resultConfidence.textContent = '';
+  bannerArea.innerHTML = '';
+  debugMetrics.textContent = '';
+
+  // Restart camera
+  startCamera();
+}
+
+// ============================================================
+// EVENT LISTENERS
+// ============================================================
+
+btnCapture.addEventListener('click', captureFrame);
+
+btnStop.addEventListener('click', () => {
+  stopCamera();
+  btnCapture.disabled = true;
+});
+
+btnFlip.addEventListener('click', switchCamera);
+
+btnExit.addEventListener('click', () => {
+  stopCamera();
+  document.body.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#888;font-size:16px;">' +
+    'Camera encerrada. Recarregue para reiniciar.</div>';
+});
+
+btnNewMeasure.addEventListener('click', returnToViewfinder);
+
+// Heuristic reference indicator (real detection only at capture time)
+setInterval(() => {
+  if (!stream) return;
+  dotRef.className = currentBrightness > 0.2 ? 'dot dot-green' : 'dot dot-gray';
+}, 500);
+</script>
+</body>
 </html>
