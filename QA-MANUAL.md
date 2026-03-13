@@ -15,7 +15,7 @@ Validar que o pipeline de medição via câmera funciona corretamente no browser
 | URL | https://pb-camera-poc.vercel.app |
 | Conexão | Wi-Fi (primeiro acesso baixa ~10 MB do OpenCV.js) |
 | Cartão de referência | Qualquer cartão de crédito/débito padrão (85,6 × 54 mm) |
-| Fundo | **Folha de papel branco A4** (obrigatório) |
+| Fundo | **Folha de papel branco A4** (obrigatório)   |
 | Objeto de teste | Qualquer objeto com altura entre 5–20 cm e cor diferente do branco |
 
 ---
@@ -62,7 +62,7 @@ Validar que o pipeline de medição via câmera funciona corretamente no browser
 
 **Resultado esperado:**
 - Spinner "Analisando…" aparece por 3–15 segundos (download do OpenCV na primeira vez)
-- Resultado com Comprimento e Circunferência é exibido
+- Resultado com Comprimento e Diâmetro é exibido
 - Campo "Escala do cartão" mostra valor entre **6 e 15 px/mm**
 
 **Resultado inaceitável:**
@@ -131,7 +131,7 @@ Validar que o pipeline de medição via câmera funciona corretamente no browser
 **Registrar:**
 - Medida real do objeto: _____ cm
 - Comprimento exibido: _____ cm
-- Circunferência exibida: _____ cm
+- Diâmetro exibido: _____ cm
 - Escala do cartão: _____ px/mm
 - Erro percentual: _____%
 
@@ -224,24 +224,6 @@ Executar CT-01 + CT-04 em cada browser:
 
 ---
 
-### CT-11 — Aviso de objeto visto de cima
-
-**Objetivo:** Confirmar que o app detecta e avisa quando um objeto cilíndrico é fotografado de cima (projeção circular).
-
-**Passos:**
-1. Posicione uma garrafa **em pé** dentro da zona branca + cartão na zona amarela
-2. Fotografe de cima
-
-**Resultado esperado:**
-- Comprimento ≈ Diâmetro da tampa (ambos próximos)
-- Card amarelo aparece: "O objeto parece visto de cima…"
-
-**Validação do caminho correto:**
-1. Deite a garrafa de lado e fotografe novamente
-2. Confirmar: Comprimento = comprimento real ±15%; aviso **não aparece**
-
----
-
 ## Condições que invalidam o teste
 
 Não reportar como bug se:
@@ -278,7 +260,3 @@ Reportar como bug se, com ambiente correto (fundo branco, mesmo plano, boa luz):
 | Fundo texturizado confunde detecção do cartão | `Cartão não encontrado` | Usar folha branca |
 | Primeiro carregamento do OpenCV.js demora ~10s | UX lenta | Normal, ocorre só uma vez |
 | Processamento bloqueia UI por ~2-5s | Freeze breve | Esperado para PoC (main thread) |
-| Objetos cilíndricos altos fotografados de cima → projeção 2D mostra só a tampa | Comprimento ≈ Diâmetro (ambos ≈ diâmetro da tampa); medida do comprimento real impossível nessa vista | App exibe aviso amarelo — **Deitar o objeto de lado** sobre a folha |
-| Dot "Referência" pode ficar verde sobre papel branco sem cartão | Falso positivo visual (brilho do papel ativa heurística) | Ignorar dot; o pipeline valida corretamente no momento da captura |
-| CT-08: pipeline pode retornar medição para sombras ou ruído de fundo | Medida espúria sem objeto real | Garantir que um objeto escuro claro esteja presente na zona OBJETO antes de fotografar |
-| CT-09: instabilidade em medições repetidas na mesma sessão | Possível acumulação de memória do OpenCV.js | Recarregar a página se os resultados ficarem inconsistentes |
