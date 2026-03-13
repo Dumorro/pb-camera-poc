@@ -104,6 +104,11 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
+  // Skip SW for standalone pages (not part of the React SPA)
+  if (url.pathname === '/measurement-poc.html') {
+    return
+  }
+
   // SPA fallback for navigation requests
   if (request.mode === 'navigate') {
     event.respondWith(
