@@ -2,427 +2,395 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>P&B Measurement PoC — Skin Detection</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>P&B Measurement PoC</title>
     <style>
         /* ── Reset & Base ───────────────────────────────────────────── */
-        *, *::before, *::after { box-sizing: border-box; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            margin: 0;
+            background: #000;
+            color: #fff;
+            font-family: -apple-system, system-ui, sans-serif;
             min-height: 100dvh;
-            background: #0a0a0a;
-            color: #f0f0f0;
-            font-family: system-ui, -apple-system, sans-serif;
-            -webkit-font-smoothing: antialiased;
-        }
-
-        /* ── Layout ─────────────────────────────────────────────────── */
-        #app {
-            max-width: 480px;
-            margin: 0 auto;
-            padding: 16px;
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            -webkit-font-smoothing: antialiased;
+            overflow: hidden;
         }
 
         /* ── Header ─────────────────────────────────────────────────── */
         header {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 6px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid #222;
-        }
-        header h1 {
-            margin: 0;
-            font-size: 1.4rem;
-            font-weight: 700;
-            letter-spacing: -0.03em;
-        }
-        header p {
-            margin: 0;
-            font-size: 0.7rem;
-            color: #666;
-        }
-        .status-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.8rem;
-        }
-        #status-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: #ff4444;
-            transition: background 0.3s;
-        }
-        #status-dot.ready { background: #44ff88; }
-        #status-text { color: #888; }
-
-        /* ── File Input ─────────────────────────────────────────────── */
-        #input-section {
-            display: flex;
-            justify-content: center;
-            padding: 24px 0;
-        }
-        #file-label {
-            display: inline-block;
-            padding: 14px 36px;
-            border-radius: 50px;
-            background: #f0f0f0;
-            color: #000;
-            font-size: 0.95rem;
-            font-weight: 600;
-            cursor: pointer;
             text-align: center;
-            transition: opacity 0.2s;
+            padding: 10px 12px 6px;
+            flex-shrink: 0;
         }
-        #file-label.disabled {
-            opacity: 0.4;
+        header h1 { font-size: 1.3rem; font-weight: 700; }
+        .subtitle { font-size: 0.7rem; color: #888; letter-spacing: 1.5px; text-transform: uppercase; }
+
+        /* ── Camera Viewfinder ──────────────────────────────────────── */
+        .viewfinder {
+            position: relative;
+            width: 100%;
+            flex: 1;
+            overflow: hidden;
+            background: #111;
+        }
+        .viewfinder video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .viewfinder .guide-canvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
             pointer-events: none;
         }
-        #file-input {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            overflow: hidden;
-            clip: rect(0, 0, 0, 0);
-        }
 
-        /* ── Processing Spinner ─────────────────────────────────────── */
-        #processing {
+        /* ── Quality Indicators (top-right of viewfinder) ───────────── */
+        .indicators {
+            position: absolute;
+            top: 8px; right: 8px;
             display: flex;
             flex-direction: column;
-            align-items: center;
-            gap: 12px;
-            padding: 32px;
-            color: #888;
-            font-size: 0.9rem;
+            gap: 5px;
+            font-size: 0.68rem;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.9);
         }
-        .spinner {
-            width: 32px;
-            height: 32px;
-            border: 3px solid #333;
-            border-top-color: #f0f0f0;
+        .indicator { display: flex; align-items: center; gap: 5px; }
+        .dot {
+            width: 8px; height: 8px;
             border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+            flex-shrink: 0;
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        .dot-green  { background: #0f0; }
+        .dot-yellow { background: #ff0; }
+        .dot-red    { background: #f00; }
+        .dot-gray   { background: #555; }
 
-        /* ── Result Canvas ──────────────────────────────────────────── */
-        #result-canvas {
-            width: 100%;
+        /* ── Quality Banner (bottom-left of viewfinder) ─────────────── */
+        .quality-banner {
+            position: absolute;
+            bottom: 8px; left: 8px;
+            font-size: 0.72rem;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+            color: #ccc;
+        }
+
+        /* ── Controls ───────────────────────────────────────────────── */
+        .controls {
+            padding: 10px 12px;
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            align-items: center;
+            flex-shrink: 0;
+            background: #0a0a0a;
+        }
+        .controls button {
+            padding: 10px 18px;
             border-radius: 8px;
+            border: 1px solid #444;
+            background: #222;
+            color: #fff;
+            font-size: 0.82rem;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .controls button:disabled { opacity: 0.35; pointer-events: none; }
+        .btn-capture {
+            background: #fff !important;
+            color: #000 !important;
+            border-radius: 50% !important;
+            width: 62px; height: 62px;
+            font-size: 0.7rem !important;
+            font-weight: 700;
+            border: 3px solid #666 !important;
+            padding: 0 !important;
+        }
+        .btn-danger { background: #311 !important; color: #f88 !important; border-color: #633 !important; }
+
+        /* ── WASM Status ────────────────────────────────────────────── */
+        .wasm-status {
+            text-align: center;
+            padding: 6px;
+            font-size: 0.7rem;
+            flex-shrink: 0;
+            background: #0a0a0a;
+        }
+        .wasm-status.ready { color: #0f0; }
+        .wasm-status.loading { color: #888; }
+        .wasm-status.error { color: #f44; }
+
+        /* ── Result Section ─────────────────────────────────────────── */
+        .result-section {
+            display: none;
+            flex-direction: column;
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 12px;
+            gap: 10px;
+        }
+        .result-section.active { display: flex; }
+        .result-section canvas {
+            width: 100%;
+            border-radius: 6px;
             border: 1px solid #222;
         }
 
-        /* ── Measurement Display ────────────────────────────────────── */
-        #measurement-display {
-            display: flex;
-            gap: 12px;
-        }
-        .metric-card {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            padding: 16px;
-            background: #1a1a1a;
-            border-radius: 10px;
-            border: 1px solid #2a2a2a;
-            align-items: center;
-        }
-        .metric-label {
-            font-size: 0.7rem;
-            color: #888;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }
-        .metric-value {
-            font-size: 2rem;
+        /* ── Measurement Value ──────────────────────────────────────── */
+        .measurement-value {
+            font-size: 2.5rem;
             font-weight: 700;
-            color: #f0f0f0;
-            line-height: 1;
+            text-align: center;
         }
-        .metric-unit {
-            font-size: 1rem;
+        .measurement-unit {
+            font-size: 1.2rem;
             font-weight: 400;
             color: #aaa;
         }
+        .measurement-confidence {
+            text-align: center;
+            font-size: 0.75rem;
+            color: #888;
+        }
 
         /* ── Banners ────────────────────────────────────────────────── */
-        .banner {
-            padding: 10px 14px;
-            border-radius: 8px;
-            font-size: 0.82rem;
-            line-height: 1.5;
-        }
-        .banner.error {
-            background: rgba(180, 30, 30, 0.9);
-            color: #fff;
-        }
-        .banner.warning {
-            background: rgba(255, 200, 0, 0.08);
-            border: 1px solid rgba(255, 200, 0, 0.35);
-            color: #d4b800;
-        }
-
-        /* ── Disclaimer ─────────────────────────────────────────────── */
-        #disclaimer {
-            margin: 0;
-            font-size: 0.72rem;
-            color: #666;
+        .warning-banner {
+            background: rgba(80, 60, 0, 0.9);
+            color: #ffcc00;
+            padding: 8px 12px;
+            border-radius: 6px;
             text-align: center;
-            line-height: 1.5;
+            font-size: 0.78rem;
+            line-height: 1.4;
         }
-
-        /* ── Buttons ────────────────────────────────────────────────── */
-        #retake-btn {
-            padding: 12px;
-            font-size: 0.95rem;
-            font-weight: 600;
-            background: transparent;
-            color: #f0f0f0;
-            border: 1px solid #444;
-            border-radius: 10px;
-            cursor: pointer;
+        .error-banner {
+            background: rgba(100, 20, 20, 0.9);
+            color: #ff6666;
+            padding: 8px 12px;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 0.78rem;
+            line-height: 1.4;
         }
+        .hidden { display: none !important; }
 
         /* ── Debug Panel ────────────────────────────────────────────── */
-        #debug-panel summary {
+        details { margin-top: 4px; }
+        details summary {
             cursor: pointer;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             color: #888;
             text-transform: uppercase;
             letter-spacing: 0.1em;
-            padding: 8px 0;
+            padding: 6px 0;
         }
         .debug-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            padding: 8px 0;
+            gap: 6px;
+            padding: 6px 0;
         }
         .debug-cell {
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 3px;
         }
         .debug-cell canvas {
             width: 100%;
-            border-radius: 4px;
+            border-radius: 3px;
             border: 1px solid #222;
             background: #111;
         }
         .debug-cell span {
-            font-size: 0.65rem;
+            font-size: 0.6rem;
             color: #555;
             text-align: center;
         }
-        #debug-metrics {
-            margin: 8px 0 0;
-            font-size: 0.65rem;
-            color: #444;
+        #debugMetrics {
+            margin: 6px 0 0;
+            font-size: 0.6rem;
+            color: #555;
             white-space: pre-wrap;
             font-family: monospace;
         }
 
-        /* ── Utility ────────────────────────────────────────────────── */
-        .hidden { display: none !important; }
+        /* ── Processing Overlay ─────────────────────────────────────── */
+        .processing-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        .spinner {
+            width: 36px; height: 36px;
+            border: 3px solid #333;
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
-    <div id="app">
-        <header>
-            <h1>P&B Measurement PoC</h1>
-            <p>Skin Detection + Perspective Correction</p>
-            <div class="status-row">
-                <span id="status-dot"></span>
-                <span id="status-text">Loading OpenCV.js...</span>
-            </div>
-        </header>
 
-        <main>
-            <!-- File input -->
-            <div id="input-section">
-                <label id="file-label" class="disabled" for="file-input">
-                    Take Photo / Select Image
-                </label>
-                <input type="file" id="file-input" accept="image/*" capture="environment" disabled>
+    <header>
+        <h1>P&B Camera PoC</h1>
+        <div class="subtitle">PWA &middot; WASM &middot; CAMERA</div>
+    </header>
+
+    <!-- ═══════ MODE 1: Camera Viewfinder ═══════ -->
+    <section id="cameraSection">
+        <div class="viewfinder" id="viewfinder">
+            <video id="cameraVideo" autoplay playsinline muted></video>
+            <canvas id="guideCanvas" class="guide-canvas"></canvas>
+
+            <!-- Quality indicators -->
+            <div class="indicators">
+                <div class="indicator"><span id="refDot" class="dot dot-gray"></span> Referencia</div>
+                <div class="indicator"><span id="lightDot" class="dot dot-gray"></span> Iluminacao</div>
             </div>
 
-            <!-- Processing spinner -->
-            <div id="processing" class="hidden">
+            <div class="quality-banner" id="qualityBanner"></div>
+
+            <!-- Processing overlay (shown during pipeline) -->
+            <div id="processingOverlay" class="processing-overlay hidden">
                 <div class="spinner"></div>
-                <span>Analisando...</span>
+                <span style="color:#ccc; font-size:0.85rem;">Analisando...</span>
             </div>
+        </div>
 
-            <!-- Error banner -->
-            <div id="error-banner" class="banner error hidden"></div>
+        <div class="controls">
+            <button id="stopBtn">Parar</button>
+            <button id="captureBtn" class="btn-capture" disabled>Foto</button>
+            <button id="flipBtn">Frontal</button>
+        </div>
+    </section>
 
-            <!-- Warning banner -->
-            <div id="warning-banner" class="banner warning hidden"></div>
+    <!-- ═══════ MODE 2: Result Display ═══════ -->
+    <section id="resultSection" class="result-section">
+        <canvas id="resultCanvas"></canvas>
 
-            <!-- Result canvas -->
-            <canvas id="result-canvas" class="hidden"></canvas>
+        <div class="measurement-value" id="measurementValue">--</div>
+        <div class="measurement-confidence" id="confidenceText"></div>
 
-            <!-- Measurement display -->
-            <div id="measurement-display" class="hidden">
-                <div class="metric-card">
-                    <span class="metric-label">Comprimento</span>
-                    <span id="length-value" class="metric-value">--</span>
-                    <span class="metric-unit">cm</span>
-                </div>
-                <div class="metric-card">
-                    <span class="metric-label">px/mm</span>
-                    <span id="pxmm-value" class="metric-value">--</span>
-                </div>
+        <div id="warningBanner" class="warning-banner hidden"></div>
+        <div id="errorBanner" class="error-banner hidden"></div>
+
+        <div class="controls">
+            <button id="retakeBtn">Nova Medida</button>
+        </div>
+
+        <details id="debugPanel">
+            <summary>Debug Info</summary>
+            <div class="debug-grid">
+                <div class="debug-cell"><canvas id="debug-gray"></canvas><span>Grayscale</span></div>
+                <div class="debug-cell"><canvas id="debug-enhanced"></canvas><span>CLAHE / EqHist</span></div>
+                <div class="debug-cell"><canvas id="debug-edges"></canvas><span>Canny Edges</span></div>
+                <div class="debug-cell"><canvas id="debug-card"></canvas><span>Card Detection</span></div>
+                <div class="debug-cell"><canvas id="debug-skin"></canvas><span>Skin Mask</span></div>
+                <div class="debug-cell"><canvas id="debug-roi"></canvas><span>ROI + Tip</span></div>
             </div>
+            <pre id="debugMetrics"></pre>
+        </details>
+    </section>
 
-            <!-- Disclaimer -->
-            <p id="disclaimer" class="hidden">
-                Resultados aproximados. Iluminacao, angulo e segmentacao afetam a precisao.
-            </p>
+    <!-- Hidden processing canvas -->
+    <canvas id="processCanvas" style="display:none"></canvas>
 
-            <!-- Retake button -->
-            <button id="retake-btn" class="hidden">Nova medicao</button>
-
-            <!-- Debug panel -->
-            <details id="debug-panel" class="hidden">
-                <summary>Debug Pipeline</summary>
-                <div class="debug-grid">
-                    <div class="debug-cell">
-                        <canvas id="debug-gray"></canvas>
-                        <span>Grayscale</span>
-                    </div>
-                    <div class="debug-cell">
-                        <canvas id="debug-enhanced"></canvas>
-                        <span>CLAHE / EqHist</span>
-                    </div>
-                    <div class="debug-cell">
-                        <canvas id="debug-edges"></canvas>
-                        <span>Canny Edges</span>
-                    </div>
-                    <div class="debug-cell">
-                        <canvas id="debug-card"></canvas>
-                        <span>Card Detection</span>
-                    </div>
-                    <div class="debug-cell">
-                        <canvas id="debug-skin"></canvas>
-                        <span>Skin Mask</span>
-                    </div>
-                    <div class="debug-cell">
-                        <canvas id="debug-roi"></canvas>
-                        <span>ROI + Measurement</span>
-                    </div>
-                </div>
-                <pre id="debug-metrics"></pre>
-            </details>
-        </main>
-    </div>
-
-    <!-- Hidden image element for loading user photos -->
-    <img id="src-image" style="display:none">
+    <div class="wasm-status loading" id="wasmStatus">Carregando OpenCV.js...</div>
 
     <!-- ════════════════════════════════════════════════════════════════
          ALL JAVASCRIPT BELOW
-         PRIVACY: No image data ever leaves the browser.
+         PRIVACY: No image data ever leaves this browser tab.
          No fetch, no XHR, no postMessage to external origins.
-         Everything runs 100% client-side via OpenCV.js (WASM).
+         The photo exists only in <canvas> memory, discarded on retake.
          ════════════════════════════════════════════════════════════════ -->
     <script>
     'use strict';
 
     // ── Constants ────────────────────────────────────────────────────
-    const CARD_WIDTH_MM  = 85.60;
-    const CARD_HEIGHT_MM = 53.98;
-    const CARD_RATIO     = CARD_WIDTH_MM / CARD_HEIGHT_MM; // ~1.585
-    const CARD_RATIO_TOLERANCE = 0.12;       // for detection candidate filtering
-    const PERSPECTIVE_OK_TOLERANCE = 0.25;   // deviation threshold for quality warning
+    var CARD_WIDTH_MM  = 85.60;
+    var CARD_HEIGHT_MM = 53.98;
+    var CARD_RATIO     = CARD_WIDTH_MM / CARD_HEIGHT_MM; // ~1.585
+    var CARD_RATIO_TOLERANCE = 0.12;
+    var PERSPECTIVE_OK_TOLERANCE = 0.25;
 
-    const CANNY_LOW  = 40;   // validated in existing pipeline
-    const CANNY_HIGH = 120;
-
-    const MIN_CARD_SIDE_PX = 80;
-    const MAX_IMAGE_DIM = 1920; // downscale large phone photos
+    var CANNY_LOW  = 40;
+    var CANNY_HIGH = 120;
+    var MIN_CARD_SIDE_PX = 80;
+    var MAX_IMAGE_DIM = 1920;
 
     // HSV skin color ranges (two bands for hue wrap-around)
-    const SKIN_H_LOW1 = 0,   SKIN_S_LOW1 = 30,  SKIN_V_LOW1 = 60;
-    const SKIN_H_HIGH1 = 25, SKIN_S_HIGH1 = 170, SKIN_V_HIGH1 = 255;
-    const SKIN_H_LOW2 = 170, SKIN_S_LOW2 = 30,   SKIN_V_LOW2 = 60;
-    const SKIN_H_HIGH2 = 180,SKIN_S_HIGH2 = 170,  SKIN_V_HIGH2 = 255;
-
-    // ── DOM References ──────────────────────────────────────────────
-    const $statusDot      = document.getElementById('status-dot');
-    const $statusText     = document.getElementById('status-text');
-    const $inputSection   = document.getElementById('input-section');
-    const $fileLabel      = document.getElementById('file-label');
-    const $fileInput      = document.getElementById('file-input');
-    const $processing     = document.getElementById('processing');
-    const $errorBanner    = document.getElementById('error-banner');
-    const $warningBanner  = document.getElementById('warning-banner');
-    const $resultCanvas   = document.getElementById('result-canvas');
-    const $measureDisplay = document.getElementById('measurement-display');
-    const $lengthValue    = document.getElementById('length-value');
-    const $pxmmValue      = document.getElementById('pxmm-value');
-    const $disclaimer     = document.getElementById('disclaimer');
-    const $retakeBtn      = document.getElementById('retake-btn');
-    const $debugPanel     = document.getElementById('debug-panel');
-    const $debugMetrics   = document.getElementById('debug-metrics');
+    var SKIN_H_LOW1 = 0,   SKIN_S_LOW1 = 30,  SKIN_V_LOW1 = 60;
+    var SKIN_H_HIGH1 = 25, SKIN_S_HIGH1 = 170, SKIN_V_HIGH1 = 255;
+    var SKIN_H_LOW2 = 170, SKIN_S_LOW2 = 30,   SKIN_V_LOW2 = 60;
+    var SKIN_H_HIGH2 = 180,SKIN_S_HIGH2 = 170,  SKIN_V_HIGH2 = 255;
 
     // ── State ───────────────────────────────────────────────────────
-    let cvReady = false;
+    var cvReady = false;
+    var stream = null;
+    var facingMode = 'environment';
+    var guideLoopRunning = false;
+    var brightnessInterval = null;
+
+    // ── DOM refs ────────────────────────────────────────────────────
+    var $cameraSection    = document.getElementById('cameraSection');
+    var $resultSection    = document.getElementById('resultSection');
+    var $video            = document.getElementById('cameraVideo');
+    var $guideCanvas      = document.getElementById('guideCanvas');
+    var $processCanvas    = document.getElementById('processCanvas');
+    var $resultCanvas     = document.getElementById('resultCanvas');
+    var $captureBtn       = document.getElementById('captureBtn');
+    var $stopBtn          = document.getElementById('stopBtn');
+    var $flipBtn          = document.getElementById('flipBtn');
+    var $retakeBtn        = document.getElementById('retakeBtn');
+    var $refDot           = document.getElementById('refDot');
+    var $lightDot         = document.getElementById('lightDot');
+    var $qualityBanner    = document.getElementById('qualityBanner');
+    var $processingOvl    = document.getElementById('processingOverlay');
+    var $measurementValue = document.getElementById('measurementValue');
+    var $confidenceText   = document.getElementById('confidenceText');
+    var $warningBanner    = document.getElementById('warningBanner');
+    var $errorBanner      = document.getElementById('errorBanner');
+    var $debugMetrics     = document.getElementById('debugMetrics');
+    var $wasmStatus       = document.getElementById('wasmStatus');
 
     // ── UI Helpers ──────────────────────────────────────────────────
-    function show(el)  { el.classList.remove('hidden'); }
-    function hide(el)  { el.classList.add('hidden'); }
+    function show(el) { el.classList.remove('hidden'); }
+    function hide(el) { el.classList.add('hidden'); }
 
-    function showError(msg) {
-        $errorBanner.textContent = msg;
-        show($errorBanner);
-    }
-    function showWarning(msg) {
-        $warningBanner.textContent = msg;
-        show($warningBanner);
-    }
-
-    function showResult(lengthCm, pxPerMm) {
-        $lengthValue.textContent = lengthCm;
-        $pxmmValue.textContent = pxPerMm.toFixed(1);
-        show($resultCanvas);
-        show($measureDisplay);
-        show($disclaimer);
-        show($retakeBtn);
-        show($debugPanel);
-    }
-
-    function resetUI() {
-        hide($processing);
-        hide($errorBanner);
+    function showCameraMode() {
+        $cameraSection.style.display = '';
+        $resultSection.classList.remove('active');
         hide($warningBanner);
-        hide($resultCanvas);
-        hide($measureDisplay);
-        hide($disclaimer);
-        hide($retakeBtn);
-        hide($debugPanel);
-        show($inputSection);
-        $debugMetrics.textContent = '';
+        hide($errorBanner);
+        hide($processingOvl);
+    }
+
+    function showResultMode() {
+        $cameraSection.style.display = 'none';
+        $resultSection.classList.add('active');
     }
 
     // ── Memory Management ───────────────────────────────────────────
-    function releaseMats(/* ...mats */) {
-        for (let i = 0; i < arguments.length; i++) {
-            try { if (arguments[i]) arguments[i].delete(); } catch (_) { /* already freed */ }
+    function releaseMats() {
+        for (var i = 0; i < arguments.length; i++) {
+            try { if (arguments[i]) arguments[i].delete(); } catch(_) {}
         }
     }
 
     // ── Debug Rendering ─────────────────────────────────────────────
     function matToCanvas(mat, canvasId) {
         if (!mat || mat.isDeleted()) return;
-        let display = null;
+        var display = null;
         try {
             if (mat.channels() === 1) {
                 display = new cv.Mat();
@@ -439,117 +407,281 @@
         }
     }
 
-    // ── Image Loading ───────────────────────────────────────────────
-    function loadImageToMat(imgElement) {
-        const w = imgElement.naturalWidth;
-        const h = imgElement.naturalHeight;
+    // ═════════════════════════════════════════════════════════════════
+    //  CAMERA MANAGEMENT
+    // ═════════════════════════════════════════════════════════════════
 
-        // Downscale if needed
-        let drawW = w, drawH = h;
-        if (Math.max(w, h) > MAX_IMAGE_DIM) {
-            const scale = MAX_IMAGE_DIM / Math.max(w, h);
-            drawW = Math.round(w * scale);
-            drawH = Math.round(h * scale);
+    function startCamera() {
+        navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: facingMode,
+                width: { ideal: 1920 },
+                height: { ideal: 1080 }
+            },
+            audio: false
+        }).then(function(mediaStream) {
+            stream = mediaStream;
+            $video.srcObject = stream;
+            $video.onloadedmetadata = function() {
+                $video.play();
+                startGuideLoop();
+                startBrightnessCheck();
+            };
+        }).catch(function(err) {
+            console.error('Camera error:', err);
+            $qualityBanner.textContent = 'Camera access denied or unavailable.';
+        });
+    }
+
+    function stopCamera() {
+        guideLoopRunning = false;
+        if (brightnessInterval) { clearInterval(brightnessInterval); brightnessInterval = null; }
+        if (stream) {
+            stream.getTracks().forEach(function(t) { t.stop(); });
+            stream = null;
+        }
+        $video.srcObject = null;
+    }
+
+    function flipCamera() {
+        facingMode = (facingMode === 'environment') ? 'user' : 'environment';
+        $flipBtn.textContent = (facingMode === 'environment') ? 'Frontal' : 'Traseira';
+        stopCamera();
+        startCamera();
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    //  GUIDE OVERLAY (drawn every frame on camera viewfinder)
+    // ═════════════════════════════════════════════════════════════════
+
+    function startGuideLoop() {
+        guideLoopRunning = true;
+        drawGuides();
+    }
+
+    function drawGuides() {
+        if (!guideLoopRunning || !stream) return;
+
+        var vw = $video.videoWidth  || $video.clientWidth;
+        var vh = $video.videoHeight || $video.clientHeight;
+        if (vw === 0 || vh === 0) {
+            requestAnimationFrame(drawGuides);
+            return;
         }
 
-        const canvas = document.createElement('canvas');
-        canvas.width = drawW;
-        canvas.height = drawH;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(imgElement, 0, 0, drawW, drawH);
-        const imageData = ctx.getImageData(0, 0, drawW, drawH);
-        return cv.matFromImageData(imageData);
+        // Match canvas to rendered size of video (CSS pixels)
+        var cw = $video.clientWidth;
+        var ch = $video.clientHeight;
+        $guideCanvas.width  = cw;
+        $guideCanvas.height = ch;
+
+        var ctx = $guideCanvas.getContext('2d');
+        ctx.clearRect(0, 0, cw, ch);
+
+        // ── Guide dimensions (proportional to viewfinder) ──
+        // Card in portrait orientation: width=53.98, height=85.60 → aspect ~0.63
+        var cardGuideW = cw * 0.28;
+        var cardGuideH = cardGuideW / 0.63;
+
+        // Penis guide: wider and taller than card
+        var penisGuideW = cardGuideW * 1.6;
+        var penisGuideH = cardGuideH * 2.5;
+
+        var bottomMargin = ch * 0.04;
+
+        // ── Positions: centered horizontally, bottom-aligned ──
+        var penisX = (cw - penisGuideW) / 2;
+        var penisY = ch - bottomMargin - penisGuideH;
+
+        var cardX = (cw - cardGuideW) / 2;
+        var cardY = ch - bottomMargin - cardGuideH; // card bottom = penis bottom
+
+        // ── Draw penis guide (white dashed) ──
+        ctx.setLineDash([12, 8]);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(penisX, penisY, penisGuideW, penisGuideH);
+
+        // Label at top inside
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.font = 'bold 13px -apple-system, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('OBJETO', cw / 2, penisY + 18);
+
+        // ── Draw card guide (yellow/gold dashed) ──
+        ctx.setLineDash([10, 6]);
+        ctx.strokeStyle = 'rgba(255, 200, 0, 0.75)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(cardX, cardY, cardGuideW, cardGuideH);
+
+        // Label centered inside card guide
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(255, 200, 0, 0.75)';
+        ctx.font = 'bold 11px -apple-system, sans-serif';
+        ctx.fillText('CARTAO', cw / 2, cardY + cardGuideH / 2 + 4);
+
+        requestAnimationFrame(drawGuides);
     }
+
+    // ═════════════════════════════════════════════════════════════════
+    //  REAL-TIME QUALITY INDICATORS
+    // ═════════════════════════════════════════════════════════════════
+
+    function startBrightnessCheck() {
+        if (brightnessInterval) clearInterval(brightnessInterval);
+        brightnessInterval = setInterval(function() {
+            if (!stream || $video.readyState < 2) return;
+
+            // Sample brightness on a tiny canvas
+            var c = document.createElement('canvas');
+            c.width = 64; c.height = 48;
+            var ctx = c.getContext('2d');
+            ctx.drawImage($video, 0, 0, 64, 48);
+            var data = ctx.getImageData(0, 0, 64, 48).data;
+
+            var sum = 0;
+            var count = 0;
+            for (var i = 0; i < data.length; i += 16) { // sample every 4th pixel
+                sum += data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114;
+                count++;
+            }
+            var avg = sum / count;
+            var pct = (avg / 255 * 100).toFixed(0);
+
+            // Update light dot
+            if (avg > 150) {
+                $lightDot.className = 'dot dot-green';
+            } else if (avg > 100) {
+                $lightDot.className = 'dot dot-yellow';
+            } else {
+                $lightDot.className = 'dot dot-red';
+            }
+
+            $qualityBanner.textContent = 'Brilho: ' + pct + '%';
+
+            // Card presence: we just show gray dot (lightweight heuristic not implemented
+            // to keep the PoC simple — full detection runs on capture)
+            $refDot.className = 'dot dot-gray';
+        }, 300);
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    //  CAPTURE
+    // ═════════════════════════════════════════════════════════════════
+
+    function captureFrame() {
+        if (!cvReady) return;
+
+        // Draw current video frame to hidden canvas at full resolution
+        var vw = $video.videoWidth;
+        var vh = $video.videoHeight;
+
+        // Downscale if needed
+        var scale = 1;
+        if (Math.max(vw, vh) > MAX_IMAGE_DIM) {
+            scale = MAX_IMAGE_DIM / Math.max(vw, vh);
+        }
+        var dw = Math.round(vw * scale);
+        var dh = Math.round(vh * scale);
+
+        $processCanvas.width  = dw;
+        $processCanvas.height = dh;
+        $processCanvas.getContext('2d').drawImage($video, 0, 0, dw, dh);
+
+        // Show processing overlay
+        show($processingOvl);
+        guideLoopRunning = false;
+
+        // Run pipeline after a tick so the overlay renders
+        setTimeout(function() {
+            runPipeline($processCanvas);
+        }, 50);
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    //  CV PIPELINE
+    // ═════════════════════════════════════════════════════════════════
 
     // ── Step 1: Preprocess ──────────────────────────────────────────
     function preprocessImage(src) {
-        let gray = new cv.Mat();
-        let blurred = new cv.Mat();
-        let enhanced = new cv.Mat();
+        var gray = new cv.Mat();
+        var blurred = new cv.Mat();
+        var enhanced = new cv.Mat();
 
         cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
         cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
 
         // CLAHE with fallback to equalizeHist
         if (typeof cv.createCLAHE === 'function') {
-            let clahe = cv.createCLAHE(2.0, new cv.Size(8, 8));
+            var clahe = cv.createCLAHE(2.0, new cv.Size(8, 8));
             clahe.apply(blurred, enhanced);
             clahe.delete();
         } else {
             cv.equalizeHist(blurred, enhanced);
         }
 
-        // Debug: render intermediates
         matToCanvas(gray, 'debug-gray');
         matToCanvas(enhanced, 'debug-enhanced');
 
-        // Caller must delete gray, blurred, enhanced
         return { gray: gray, blurred: blurred, enhanced: enhanced };
     }
 
     // ── Corner Ordering ─────────────────────────────────────────────
     function orderCorners(pts) {
-        // pts: array of {x, y} (4 points)
         // Returns [topLeft, topRight, bottomRight, bottomLeft]
-        const sums = pts.map(function(p) { return p.x + p.y; });
-        const diffs = pts.map(function(p) { return p.y - p.x; });
-
+        var sums = pts.map(function(p) { return p.x + p.y; });
+        var diffs = pts.map(function(p) { return p.y - p.x; });
         var tl = pts[sums.indexOf(Math.min.apply(null, sums))];
         var br = pts[sums.indexOf(Math.max.apply(null, sums))];
         var tr = pts[diffs.indexOf(Math.min.apply(null, diffs))];
         var bl = pts[diffs.indexOf(Math.max.apply(null, diffs))];
-
         return [tl, tr, br, bl];
     }
 
     // ── Step 2: Detect Card ─────────────────────────────────────────
     function detectCard(enhanced, src) {
-        let edges = new cv.Mat();
-        let dilated = new cv.Mat();
-        let contours = new cv.MatVector();
-        let hierarchy = new cv.Mat();
-        let kernel = null;
-        let debugCardMat = null;
+        var edges = new cv.Mat();
+        var dilated = new cv.Mat();
+        var contours = new cv.MatVector();
+        var hierarchy = new cv.Mat();
+        var kernel = null;
+        var debugCardMat = null;
 
         try {
-            // Edge detection
             cv.Canny(enhanced, edges, CANNY_LOW, CANNY_HIGH);
-
             kernel = cv.Mat.ones(3, 3, cv.CV_8U);
             cv.dilate(edges, dilated, kernel);
 
-            // Debug: show edges
             matToCanvas(edges, 'debug-edges');
 
-            // Find contours — RETR_LIST to find card even inside paper
+            // RETR_LIST: finds card even when paper fills frame
             cv.findContours(dilated, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
 
-            // Filter for card-shaped quadrilaterals
-            let bestCandidate = null;
-            let bestApproxPts = null;
-            let allCandidates = []; // for debug drawing
+            var bestCandidate = null;
+            var bestApproxPts = null;
+            var allCandidates = [];
 
-            for (let i = 0; i < contours.size(); i++) {
-                let contour = contours.get(i);
-                let perimeter = cv.arcLength(contour, true);
-                let approx = new cv.Mat();
+            for (var i = 0; i < contours.size(); i++) {
+                var contour = contours.get(i);
+                var perimeter = cv.arcLength(contour, true);
+                var approx = new cv.Mat();
                 cv.approxPolyDP(contour, approx, 0.02 * perimeter, true);
 
                 if (approx.rows === 4) {
-                    let rotated = cv.minAreaRect(approx);
-                    let w = rotated.size.width;
-                    let h = rotated.size.height;
-                    let longer = Math.max(w, h);
-                    let shorter = Math.min(w, h);
+                    var rotated = cv.minAreaRect(approx);
+                    var w = rotated.size.width;
+                    var h = rotated.size.height;
+                    var longer = Math.max(w, h);
+                    var shorter = Math.min(w, h);
 
                     if (longer >= MIN_CARD_SIDE_PX && shorter > 0) {
-                        let ratio = longer / shorter;
-                        let deviation = Math.abs(ratio - CARD_RATIO);
+                        var ratio = longer / shorter;
+                        var deviation = Math.abs(ratio - CARD_RATIO);
 
                         if (deviation <= CARD_RATIO_TOLERANCE) {
-                            // Extract corner points
-                            let pts = [];
-                            for (let j = 0; j < 4; j++) {
+                            var pts = [];
+                            for (var j = 0; j < 4; j++) {
                                 pts.push({
                                     x: approx.data32S[j * 2],
                                     y: approx.data32S[j * 2 + 1]
@@ -557,9 +689,8 @@
                             }
                             allCandidates.push({ pts: pts, deviation: deviation, longer: longer });
 
-                            // Pick largest matching contour
                             if (!bestCandidate || longer > bestCandidate.longer) {
-                                bestCandidate = { pts: pts, deviation: deviation, longer: longer, rotated: rotated };
+                                bestCandidate = { pts: pts, deviation: deviation, longer: longer };
                                 bestApproxPts = pts;
                             }
                         }
@@ -569,7 +700,6 @@
             }
 
             if (!bestCandidate) {
-                // Debug: draw all contours found (no card match)
                 debugCardMat = src.clone();
                 cv.drawContours(debugCardMat, contours, -1, new cv.Scalar(100, 100, 100, 255), 1);
                 matToCanvas(debugCardMat, 'debug-card');
@@ -577,117 +707,82 @@
             }
 
             // Order corners [TL, TR, BR, BL]
-            let ordered = orderCorners(bestApproxPts);
+            var ordered = orderCorners(bestApproxPts);
 
-            // Debug: draw all candidates (red) and winner (green)
+            // Debug: draw candidates and winner
             debugCardMat = src.clone();
-            for (let c = 0; c < allCandidates.length; c++) {
-                let pts = allCandidates[c].pts;
-                let color = (allCandidates[c] === bestCandidate)
+            for (var c = 0; c < allCandidates.length; c++) {
+                var cpts = allCandidates[c].pts;
+                var color = (allCandidates[c] === bestCandidate)
                     ? new cv.Scalar(0, 255, 0, 255)
                     : new cv.Scalar(255, 0, 0, 255);
-                for (let k = 0; k < 4; k++) {
-                    let p1 = pts[k];
-                    let p2 = pts[(k + 1) % 4];
+                for (var k = 0; k < 4; k++) {
                     cv.line(debugCardMat,
-                        new cv.Point(p1.x, p1.y),
-                        new cv.Point(p2.x, p2.y),
+                        new cv.Point(cpts[k].x, cpts[k].y),
+                        new cv.Point(cpts[(k+1)%4].x, cpts[(k+1)%4].y),
                         color, 2);
                 }
             }
-            // Draw ordered corners with labels (circles)
-            var cornerColors = [
-                new cv.Scalar(255, 255, 0, 255),  // TL yellow
-                new cv.Scalar(0, 255, 255, 255),   // TR cyan
-                new cv.Scalar(255, 0, 255, 255),   // BR magenta
-                new cv.Scalar(255, 128, 0, 255)    // BL orange
+            // Corner markers
+            var ccols = [
+                new cv.Scalar(255,255,0,255), new cv.Scalar(0,255,255,255),
+                new cv.Scalar(255,0,255,255), new cv.Scalar(255,128,0,255)
             ];
-            for (let k = 0; k < 4; k++) {
-                cv.circle(debugCardMat, new cv.Point(ordered[k].x, ordered[k].y),
-                    6, cornerColors[k], -1);
+            for (var k2 = 0; k2 < 4; k2++) {
+                cv.circle(debugCardMat, new cv.Point(ordered[k2].x, ordered[k2].y), 6, ccols[k2], -1);
             }
             matToCanvas(debugCardMat, 'debug-card');
 
-            // Compute pxPerMm from original image edge lengths
-            let topEdgeLen = Math.hypot(
-                ordered[1].x - ordered[0].x,
-                ordered[1].y - ordered[0].y
-            );
-            let leftEdgeLen = Math.hypot(
-                ordered[3].x - ordered[0].x,
-                ordered[3].y - ordered[0].y
-            );
-            let longerEdge = Math.max(topEdgeLen, leftEdgeLen);
-            let shorterEdge = Math.min(topEdgeLen, leftEdgeLen);
+            // Compute pxPerMm from original edge lengths
+            var topEdgeLen = Math.hypot(ordered[1].x - ordered[0].x, ordered[1].y - ordered[0].y);
+            var leftEdgeLen = Math.hypot(ordered[3].x - ordered[0].x, ordered[3].y - ordered[0].y);
+            var longerEdge = Math.max(topEdgeLen, leftEdgeLen);
+            var shorterEdge = Math.min(topEdgeLen, leftEdgeLen);
 
-            // Determine if card is rotated (portrait vs landscape)
-            let isRotated = leftEdgeLen > topEdgeLen;
-            let widthMm = isRotated ? CARD_HEIGHT_MM : CARD_WIDTH_MM;
-            let heightMm = isRotated ? CARD_WIDTH_MM : CARD_HEIGHT_MM;
+            var isRotated = leftEdgeLen > topEdgeLen;
+            var widthMm = isRotated ? CARD_HEIGHT_MM : CARD_WIDTH_MM;
+            var heightMm = isRotated ? CARD_WIDTH_MM : CARD_HEIGHT_MM;
 
-            let pxPerMmW = topEdgeLen / widthMm;
-            let pxPerMmH = leftEdgeLen / heightMm;
-            let pxPerMm = (pxPerMmW + pxPerMmH) / 2.0;
+            var pxPerMmW = topEdgeLen / widthMm;
+            var pxPerMmH = leftEdgeLen / heightMm;
+            var pxPerMm = (pxPerMmW + pxPerMmH) / 2.0;
 
-            // Card top edge: the two corners closest to image top
-            let topY = Math.min(ordered[0].y, ordered[1].y);
-            let cardTopEdge = {
+            // Card BOTTOM edge: the two corners with HIGHEST Y (closest to pelvis)
+            // ordered = [TL, TR, BR, BL]
+            var bottomY = Math.max(ordered[2].y, ordered[3].y);
+            var cardBottomEdge = {
+                y: bottomY,
+                centerX: (ordered[2].x + ordered[3].x) / 2
+            };
+
+            // Card TOP edge: lowest Y
+            var topY = Math.min(ordered[0].y, ordered[1].y);
+            var cardTopEdge = {
                 y: topY,
                 centerX: (ordered[0].x + ordered[1].x) / 2
             };
 
-            // Card bounding rect for ROI computation
-            let tempCornersMat = cv.matFromArray(4, 1, cv.CV_32SC2, [
-                ordered[0].x, ordered[0].y,
-                ordered[1].x, ordered[1].y,
-                ordered[2].x, ordered[2].y,
-                ordered[3].x, ordered[3].y
+            // Card bounding rect
+            var tempMat = cv.matFromArray(4, 1, cv.CV_32SC2, [
+                ordered[0].x, ordered[0].y, ordered[1].x, ordered[1].y,
+                ordered[2].x, ordered[2].y, ordered[3].x, ordered[3].y
             ]);
-            let cardRect = cv.boundingRect(tempCornersMat);
-            tempCornersMat.delete();
+            var cardRect = cv.boundingRect(tempMat);
+            tempMat.delete();
 
             // Perspective quality check
-            let observedRatio = longerEdge / shorterEdge;
-            let perspectiveDeviation = Math.abs(observedRatio - CARD_RATIO) / CARD_RATIO;
-            let perspectiveOk = perspectiveDeviation <= PERSPECTIVE_OK_TOLERANCE;
-
-            // Perspective correction (for debug visualization)
-            let rectified = null;
-            let srcPts = null;
-            let dstPts = null;
-            let M = null;
-            try {
-                let dstW = Math.round(widthMm * 4);  // 4 px/mm
-                let dstH = Math.round(heightMm * 4);
-
-                srcPts = cv.matFromArray(4, 1, cv.CV_32FC2, [
-                    ordered[0].x, ordered[0].y,
-                    ordered[1].x, ordered[1].y,
-                    ordered[2].x, ordered[2].y,
-                    ordered[3].x, ordered[3].y
-                ]);
-                dstPts = cv.matFromArray(4, 1, cv.CV_32FC2, [
-                    0, 0, dstW, 0, dstW, dstH, 0, dstH
-                ]);
-
-                M = cv.getPerspectiveTransform(srcPts, dstPts);
-                rectified = new cv.Mat();
-                cv.warpPerspective(src, rectified, M, new cv.Size(dstW, dstH));
-            } catch (e) {
-                // Perspective transform failed — non-fatal, skip rectification
-                rectified = null;
-            } finally {
-                releaseMats(srcPts, dstPts, M);
-            }
+            var observedRatio = longerEdge / shorterEdge;
+            var perspDeviation = Math.abs(observedRatio - CARD_RATIO) / CARD_RATIO;
+            var perspOk = perspDeviation <= PERSPECTIVE_OK_TOLERANCE;
 
             return {
                 corners: ordered,
-                rectified: rectified,
                 pxPerMm: pxPerMm,
+                cardBottomEdge: cardBottomEdge,
                 cardTopEdge: cardTopEdge,
                 cardRect: cardRect,
-                perspectiveOk: perspectiveOk,
-                perspectiveDeviation: perspectiveDeviation,
+                perspectiveOk: perspOk,
+                perspectiveDeviation: perspDeviation,
                 isRotated: isRotated
             };
         } finally {
@@ -698,9 +793,8 @@
 
     // ── Helper: cv.inRange with proper Mat bounds ───────────────────
     function inRangeHSV(hsvMat, hLow, sLow, vLow, hHigh, sHigh, vHigh, dst) {
-        // OpenCV.js inRange requires Mat bounds (not Scalar) in many builds
-        let low = new cv.Mat(hsvMat.rows, hsvMat.cols, hsvMat.type(), [hLow, sLow, vLow, 0]);
-        let high = new cv.Mat(hsvMat.rows, hsvMat.cols, hsvMat.type(), [hHigh, sHigh, vHigh, 0]);
+        var low  = new cv.Mat(hsvMat.rows, hsvMat.cols, hsvMat.type(), [hLow, sLow, vLow, 0]);
+        var high = new cv.Mat(hsvMat.rows, hsvMat.cols, hsvMat.type(), [hHigh, sHigh, vHigh, 0]);
         try {
             cv.inRange(hsvMat, low, high, dst);
         } finally {
@@ -708,32 +802,28 @@
         }
     }
 
-    // ── Step 3: Detect Skin in ROI ──────────────────────────────────
-    function detectSkin(src, cardTopEdge, cardRect) {
-        // ROI: from card bottom edge downward, full width
-        let roiY = Math.min(cardRect.y + cardRect.height, src.rows - 1);
-        let roiH = Math.min(src.rows - roiY, Math.round(src.rows * 0.7));
-        let roiX = 0;
-        let roiW = src.cols;
+    // ── Step 3: Detect Skin ABOVE the Card ──────────────────────────
+    // The penis extends UPWARD from the card (toward lower Y values).
+    // The ROI is from the top of the image down to the card's top edge.
+    function detectSkin(src, cardTopEdge, cardBottomEdge, cardRect) {
+        // ROI: from top of image down to card top edge
+        var roiX = Math.max(0, cardRect.x - Math.round(cardRect.width * 0.5));
+        var roiY = 0;
+        var roiW = Math.min(Math.round(cardRect.width * 2), src.cols - roiX);
+        var roiH = cardRect.y; // ends where the card starts
 
         if (roiH < 20 || roiW < 20) return null;
 
-        let roi = null;
-        let rgb = null;
-        let hsvImg = null;
-        let mask1 = null;
-        let mask2 = null;
-        let skinMask = null;
-        let erodeKernel = null;
-        let dilateKernel = null;
-        let contours = null;
-        let hierarchy = null;
-        let debugRoiMat = null;
+        var roi = null, rgb = null, hsvImg = null;
+        var mask1 = null, mask2 = null, skinMask = null;
+        var erodeKernel = null, dilateKernel = null;
+        var contours = null, hierarchy = null;
+        var debugRoiMat = null;
 
         try {
             roi = src.roi(new cv.Rect(roiX, roiY, roiW, roiH));
 
-            // Convert RGBA → RGB → HSV
+            // RGBA → RGB → HSV
             rgb = new cv.Mat();
             cv.cvtColor(roi, rgb, cv.COLOR_RGBA2RGB);
             hsvImg = new cv.Mat();
@@ -756,75 +846,66 @@
             cv.erode(skinMask, skinMask, erodeKernel, new cv.Point(-1, -1), 1);
             cv.dilate(skinMask, skinMask, dilateKernel, new cv.Point(-1, -1), 2);
 
-            // Debug: show skin mask
             matToCanvas(skinMask, 'debug-skin');
 
-            // Find contours in skin mask
+            // Find contours
             contours = new cv.MatVector();
             hierarchy = new cv.Mat();
             cv.findContours(skinMask, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
             // Find largest contour
-            let maxArea = 0;
-            let maxIdx = -1;
-            let roiArea = roiW * roiH;
-            for (let i = 0; i < contours.size(); i++) {
-                let area = cv.contourArea(contours.get(i));
-                if (area > maxArea) {
-                    maxArea = area;
-                    maxIdx = i;
-                }
+            var maxArea = 0, maxIdx = -1;
+            var roiArea = roiW * roiH;
+            for (var i = 0; i < contours.size(); i++) {
+                var area = cv.contourArea(contours.get(i));
+                if (area > maxArea) { maxArea = area; maxIdx = i; }
             }
 
-            // Check if skin region is too small
             if (maxIdx === -1 || maxArea < roiArea * 0.02) {
-                // Debug: show empty ROI
                 matToCanvas(roi, 'debug-roi');
                 return null;
             }
 
-            // Find tip: farthest point from card top edge
-            let largestContour = contours.get(maxIdx);
-            let originX = cardTopEdge.centerX - roiX;
-            let originY = cardTopEdge.y - roiY; // negative (above ROI)
-
-            let maxDist = 0;
-            let tipX = 0;
-            let tipY = 0;
-            for (let j = 0; j < largestContour.data32S.length; j += 2) {
-                let px = largestContour.data32S[j];
-                let py = largestContour.data32S[j + 1];
-                let dist = Math.hypot(px - originX, py - originY);
-                if (dist > maxDist) {
-                    maxDist = dist;
-                    tipX = px + roiX;  // back to full image coords
+            // Find tip: point with SMALLEST Y (topmost = farthest from pelvis)
+            // In image coords, Y=0 is top of image.
+            var largestContour = contours.get(maxIdx);
+            var minPy = Infinity;
+            var tipX = 0, tipY = 0;
+            for (var j = 0; j < largestContour.data32S.length; j += 2) {
+                var px = largestContour.data32S[j];
+                var py = largestContour.data32S[j + 1];
+                if (py < minPy) {
+                    minPy = py;
+                    tipX = px + roiX;  // convert to full image coords
                     tipY = py + roiY;
                 }
             }
 
-            // Debug: draw ROI with contour and tip point
+            // Debug: draw ROI with contour, tip, and origin
             debugRoiMat = roi.clone();
-            cv.drawContours(debugRoiMat, contours, maxIdx,
-                new cv.Scalar(0, 255, 0, 255), 2);
+            cv.drawContours(debugRoiMat, contours, maxIdx, new cv.Scalar(0, 255, 0, 255), 2);
             // Tip marker (in ROI coords)
             cv.circle(debugRoiMat,
                 new cv.Point(tipX - roiX, tipY - roiY),
                 8, new cv.Scalar(0, 255, 255, 255), -1);
-            // Origin marker (in ROI coords, may be above ROI so clamp)
-            let originDrawY = Math.max(0, Math.round(cardTopEdge.y - roiY));
-            cv.circle(debugRoiMat,
-                new cv.Point(Math.round(originX), originDrawY),
-                6, new cv.Scalar(255, 255, 0, 255), -1);
-            // Measurement line in ROI coords
+            // Bottom-edge origin marker (may be below ROI, clamp)
+            var originRoiY = Math.min(roiH - 1, Math.round(cardBottomEdge.y - roiY));
+            var originRoiX = Math.round(cardBottomEdge.centerX - roiX);
+            originRoiX = Math.max(0, Math.min(roiW - 1, originRoiX));
+            if (originRoiY >= 0) {
+                cv.circle(debugRoiMat,
+                    new cv.Point(originRoiX, originRoiY),
+                    6, new cv.Scalar(255, 255, 0, 255), -1);
+            }
+            // Line from origin to tip
             cv.line(debugRoiMat,
-                new cv.Point(Math.round(originX), originDrawY),
+                new cv.Point(originRoiX, Math.max(0, originRoiY)),
                 new cv.Point(tipX - roiX, tipY - roiY),
                 new cv.Scalar(255, 100, 100, 255), 2);
             matToCanvas(debugRoiMat, 'debug-roi');
 
             return {
                 tipPoint: { x: tipX, y: tipY },
-                roiOffset: { x: roiX, y: roiY },
                 contourArea: maxArea
             };
         } finally {
@@ -835,13 +916,16 @@
     }
 
     // ── Step 4: Compute Measurement ─────────────────────────────────
-    function computeMeasurement(cardTopEdge, tipPoint, pxPerMm) {
-        let lengthPx = Math.hypot(
-            tipPoint.x - cardTopEdge.centerX,
-            tipPoint.y - cardTopEdge.y
+    // Origin = card bottom edge (highest Y = base at pelvis)
+    // Tip = topmost skin point (lowest Y = farthest from base)
+    // In image coords: cardBottomEdge.y > tipPoint.y
+    function computeMeasurement(cardBottomEdge, tipPoint, pxPerMm) {
+        var lengthPx = Math.hypot(
+            tipPoint.x - cardBottomEdge.centerX,
+            cardBottomEdge.y - tipPoint.y
         );
-        let lengthMm = lengthPx / pxPerMm;
-        let lengthCm = (lengthMm / 10).toFixed(1);
+        var lengthMm = lengthPx / pxPerMm;
+        var lengthCm = (lengthMm / 10).toFixed(1);
         return {
             lengthPx: lengthPx,
             lengthMm: Math.round(lengthMm * 10) / 10,
@@ -850,255 +934,232 @@
     }
 
     // ── Step 5: Draw Overlay ────────────────────────────────────────
-    function drawOverlay(src, cardCorners, tipPoint, cardTopEdge, lengthCm, perspectiveOk) {
-        // Render original image to result canvas
-        cv.imshow('result-canvas', src);
+    function drawOverlay(src, cardCorners, tipPoint, cardBottomEdge, lengthCm, perspOk) {
+        cv.imshow('resultCanvas', src);
 
-        // Draw overlays using Canvas 2D API
-        let ctx = $resultCanvas.getContext('2d');
+        var ctx = $resultCanvas.getContext('2d');
 
         // Card outline (green polygon)
         ctx.strokeStyle = '#44ff88';
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(cardCorners[0].x, cardCorners[0].y);
-        for (let i = 1; i < 4; i++) {
-            ctx.lineTo(cardCorners[i].x, cardCorners[i].y);
-        }
+        for (var i = 1; i < 4; i++) ctx.lineTo(cardCorners[i].x, cardCorners[i].y);
         ctx.closePath();
         ctx.stroke();
 
         // Corner dots
-        var cColors = ['#ffff00', '#00ffff', '#ff00ff', '#ff8800'];
-        for (let i = 0; i < 4; i++) {
-            ctx.fillStyle = cColors[i];
+        var ccols = ['#ffff00', '#00ffff', '#ff00ff', '#ff8800'];
+        for (var i2 = 0; i2 < 4; i2++) {
+            ctx.fillStyle = ccols[i2];
             ctx.beginPath();
-            ctx.arc(cardCorners[i].x, cardCorners[i].y, 5, 0, Math.PI * 2);
+            ctx.arc(cardCorners[i2].x, cardCorners[i2].y, 5, 0, Math.PI * 2);
             ctx.fill();
         }
 
-        // Origin marker (yellow circle at card top edge center)
+        // Origin marker (yellow) at card BOTTOM edge (base = pelvis)
         ctx.fillStyle = '#ffdd33';
         ctx.beginPath();
-        ctx.arc(cardTopEdge.centerX, cardTopEdge.y, 7, 0, Math.PI * 2);
+        ctx.arc(cardBottomEdge.centerX, cardBottomEdge.y, 7, 0, Math.PI * 2);
         ctx.fill();
 
-        // Tip marker (cyan circle)
+        // Tip marker (cyan) — topmost point of penis
         ctx.fillStyle = '#00ffdd';
         ctx.beginPath();
         ctx.arc(tipPoint.x, tipPoint.y, 7, 0, Math.PI * 2);
         ctx.fill();
 
-        // Measurement line (green, from origin to tip)
+        // Measurement line (origin → tip)
         ctx.strokeStyle = '#44ff88';
         ctx.lineWidth = 2;
         ctx.setLineDash([6, 3]);
         ctx.beginPath();
-        ctx.moveTo(cardTopEdge.centerX, cardTopEdge.y);
+        ctx.moveTo(cardBottomEdge.centerX, cardBottomEdge.y);
         ctx.lineTo(tipPoint.x, tipPoint.y);
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Length label at midpoint of line
-        let midX = (cardTopEdge.centerX + tipPoint.x) / 2;
-        let midY = (cardTopEdge.y + tipPoint.y) / 2;
-
-        ctx.font = 'bold 20px system-ui';
+        // Length label at midpoint
+        var midX = (cardBottomEdge.centerX + tipPoint.x) / 2;
+        var midY = (cardBottomEdge.y + tipPoint.y) / 2;
+        ctx.font = 'bold 20px -apple-system, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        // Black outline for readability
         ctx.strokeStyle = '#000';
         ctx.lineWidth = 4;
         ctx.strokeText(lengthCm + ' cm', midX + 30, midY);
-        // White fill
         ctx.fillStyle = '#fff';
         ctx.fillText(lengthCm + ' cm', midX + 30, midY);
 
-        // Perspective warning on image
-        if (!perspectiveOk) {
-            ctx.font = 'bold 14px system-ui';
+        if (!perspOk) {
+            ctx.font = 'bold 13px -apple-system, sans-serif';
             ctx.fillStyle = '#ff4444';
             ctx.textAlign = 'center';
-            ctx.fillText('Card may be tilted', src.cols / 2, 24);
+            ctx.fillText('Cartao inclinado — resultado pode ser impreciso', src.cols / 2, 22);
         }
     }
 
     // ── Main Pipeline ───────────────────────────────────────────────
-    function runPipeline(imgElement) {
-        if (!cvReady) {
-            showError('OpenCV.js not ready yet. Please wait.');
+    function runPipeline(canvas) {
+        if (!cvReady) return;
+
+        var imageData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+
+        // Validate size
+        if (canvas.width < 480 || canvas.height < 480) {
+            hide($processingOvl);
+            showResultMode();
+            $errorBanner.textContent = 'Image resolution too low (' + canvas.width + 'x' + canvas.height + '). Move closer.';
+            show($errorBanner);
+            $measurementValue.textContent = '--';
             return;
         }
 
-        // Validate image dimensions
-        if (imgElement.naturalWidth < 480 || imgElement.naturalHeight < 480) {
-            showError('Image resolution too low. Use a higher quality photo (min 480px).');
-            return;
-        }
+        var src = null, preResult = null, cardResult = null;
 
-        hide($inputSection);
-        show($processing);
-        hide($errorBanner);
-        hide($warningBanner);
+        try {
+            src = cv.matFromImageData(imageData);
 
-        // Use setTimeout to let the spinner render before heavy computation
-        setTimeout(function() {
-            let src = null;
-            let preResult = null;
-            let cardResult = null;
+            // Step 1: Preprocess
+            preResult = preprocessImage(src);
 
-            try {
-                // Load image
-                src = loadImageToMat(imgElement);
-
-                // Step 1: Preprocess
-                preResult = preprocessImage(src);
-
-                // Step 2: Detect card
-                cardResult = detectCard(preResult.enhanced, src);
-                if (!cardResult) {
-                    hide($processing);
-                    showError('Could not find the card. Make sure the entire card is visible, flat, and well-lit.');
-                    show($retakeBtn);
-                    show($debugPanel);
-                    return;
-                }
-
-                // Show perspective warning if needed
-                if (!cardResult.perspectiveOk) {
-                    showWarning('The card appears tilted (deviation: ' +
-                        (cardResult.perspectiveDeviation * 100).toFixed(0) +
-                        '%). Results may be less accurate. Hold the card flat.');
-                }
-
-                // pxPerMm quality check
-                if (cardResult.pxPerMm < 5) {
-                    showWarning('Camera may be too far from the card. Move closer for better accuracy.');
-                } else if (cardResult.pxPerMm > 15) {
-                    showWarning('Camera may be too close to the card.');
-                }
-
-                // Step 3: Detect skin
-                let skinResult = detectSkin(src, cardResult.cardTopEdge, cardResult.cardRect);
-                if (!skinResult) {
-                    hide($processing);
-                    showError('Could not detect the measurement area below the card. Ensure good lighting and contrast with the background.');
-                    show($retakeBtn);
-                    show($debugPanel);
-                    return;
-                }
-
-                // Step 4: Compute measurement
-                let measurement = computeMeasurement(
-                    cardResult.cardTopEdge,
-                    skinResult.tipPoint,
-                    cardResult.pxPerMm
-                );
-
-                // Step 5: Draw overlay
-                drawOverlay(src, cardResult.corners, skinResult.tipPoint,
-                    cardResult.cardTopEdge, measurement.lengthCm, cardResult.perspectiveOk);
-
-                // Update debug metrics
-                $debugMetrics.textContent =
-                    'px/mm: ' + cardResult.pxPerMm.toFixed(2) + '\n' +
-                    'Card ratio (observed): ' + (cardResult.isRotated
-                        ? (cardResult.pxPerMm * CARD_WIDTH_MM / (cardResult.pxPerMm * CARD_HEIGHT_MM)).toFixed(3)
-                        : 'N/A') + '\n' +
-                    'Card rotated: ' + (cardResult.isRotated ? 'yes' : 'no') + '\n' +
-                    'Perspective deviation: ' + (cardResult.perspectiveDeviation * 100).toFixed(1) + '%\n' +
-                    'Perspective OK: ' + cardResult.perspectiveOk + '\n' +
-                    'Skin contour area: ' + skinResult.contourArea + ' px\n' +
-                    'Tip point: (' + skinResult.tipPoint.x + ', ' + skinResult.tipPoint.y + ')\n' +
-                    'Length: ' + measurement.lengthPx.toFixed(1) + ' px = ' +
-                        measurement.lengthMm + ' mm = ' + measurement.lengthCm + ' cm';
-
-                // Show results
-                hide($processing);
-                showResult(measurement.lengthCm, cardResult.pxPerMm);
-
-            } catch (err) {
-                hide($processing);
-                showError('Processing error: ' + (err.message || String(err)));
-                show($retakeBtn);
-                show($debugPanel);
-                console.error('Pipeline error:', err);
-            } finally {
-                // Cleanup: src is used by drawOverlay (imshow copies data), safe to delete
-                releaseMats(src);
-                if (preResult) {
-                    releaseMats(preResult.gray, preResult.blurred, preResult.enhanced);
-                }
-                if (cardResult && cardResult.rectified) {
-                    releaseMats(cardResult.rectified);
-                }
+            // Step 2: Detect card
+            cardResult = detectCard(preResult.enhanced, src);
+            if (!cardResult) {
+                hide($processingOvl);
+                showResultMode();
+                $errorBanner.textContent = 'Cartao nao encontrado. Posicione o cartao visivel, plano e bem iluminado.';
+                show($errorBanner);
+                $measurementValue.textContent = '--';
+                return;
             }
-        }, 50); // small delay for spinner to render
+
+            // Perspective warning
+            if (!cardResult.perspectiveOk) {
+                $warningBanner.textContent = 'Cartao inclinado (desvio: ' +
+                    (cardResult.perspectiveDeviation * 100).toFixed(0) + '%). Resultado pode ser impreciso.';
+                show($warningBanner);
+            }
+
+            // pxPerMm quality
+            if (cardResult.pxPerMm < 5) {
+                $warningBanner.textContent = 'Camera muito distante. Aproxime para melhor precisao.';
+                show($warningBanner);
+            } else if (cardResult.pxPerMm > 15) {
+                $warningBanner.textContent = 'Camera muito proxima do cartao.';
+                show($warningBanner);
+            }
+
+            // Step 3: Detect skin ABOVE the card
+            var skinResult = detectSkin(src, cardResult.cardTopEdge, cardResult.cardBottomEdge, cardResult.cardRect);
+            if (!skinResult) {
+                hide($processingOvl);
+                showResultMode();
+                $errorBanner.textContent = 'Pele nao detectada acima do cartao. Verifique iluminacao e contraste.';
+                show($errorBanner);
+                $measurementValue.textContent = '--';
+                return;
+            }
+
+            // Step 4: Compute measurement (from card BOTTOM edge to tip)
+            var measurement = computeMeasurement(
+                cardResult.cardBottomEdge,
+                skinResult.tipPoint,
+                cardResult.pxPerMm
+            );
+
+            // Step 5: Draw overlay
+            drawOverlay(src, cardResult.corners, skinResult.tipPoint,
+                cardResult.cardBottomEdge, measurement.lengthCm, cardResult.perspectiveOk);
+
+            // Debug metrics
+            $debugMetrics.textContent =
+                'px/mm: ' + cardResult.pxPerMm.toFixed(2) + '\n' +
+                'Card rotated: ' + (cardResult.isRotated ? 'yes (portrait)' : 'no (landscape)') + '\n' +
+                'Perspective deviation: ' + (cardResult.perspectiveDeviation * 100).toFixed(1) + '%\n' +
+                'Perspective OK: ' + cardResult.perspectiveOk + '\n' +
+                'Skin contour area: ' + skinResult.contourArea + ' px\n' +
+                'Tip point: (' + skinResult.tipPoint.x + ', ' + skinResult.tipPoint.y + ')\n' +
+                'Card bottom edge Y: ' + cardResult.cardBottomEdge.y + '\n' +
+                'Length: ' + measurement.lengthPx.toFixed(1) + ' px = ' +
+                    measurement.lengthMm + ' mm = ' + measurement.lengthCm + ' cm';
+
+            // Show result
+            hide($processingOvl);
+            showResultMode();
+            stopCamera();
+            $measurementValue.innerHTML = measurement.lengthCm + ' <span class="measurement-unit">cm</span>';
+            $confidenceText.textContent = cardResult.perspectiveOk ? 'Confianca: Alta' : 'Confianca: Baixa';
+
+        } catch (err) {
+            hide($processingOvl);
+            showResultMode();
+            $errorBanner.textContent = 'Erro no processamento: ' + (err.message || String(err));
+            show($errorBanner);
+            $measurementValue.textContent = '--';
+            console.error('Pipeline error:', err);
+        } finally {
+            releaseMats(src);
+            if (preResult) releaseMats(preResult.gray, preResult.blurred, preResult.enhanced);
+        }
     }
 
-    // ── Event Handlers ──────────────────────────────────────────────
-    $fileInput.addEventListener('change', function(e) {
-        let file = e.target.files[0];
-        if (!file) return;
+    // ═════════════════════════════════════════════════════════════════
+    //  EVENT HANDLERS
+    // ═════════════════════════════════════════════════════════════════
 
-        let img = new Image();
-        img.onload = function() {
-            runPipeline(img);
-            URL.revokeObjectURL(img.src);
-        };
-        img.onerror = function() {
-            showError('Failed to load the image. Please try a different photo.');
-            URL.revokeObjectURL(img.src);
-        };
-        img.src = URL.createObjectURL(file);
-
-        // Reset so same file can be re-selected
-        e.target.value = '';
-    });
+    $captureBtn.addEventListener('click', captureFrame);
+    $stopBtn.addEventListener('click', function() { stopCamera(); });
+    $flipBtn.addEventListener('click', flipCamera);
 
     $retakeBtn.addEventListener('click', function() {
-        resetUI();
+        hide($warningBanner);
+        hide($errorBanner);
+        $measurementValue.textContent = '--';
+        $confidenceText.textContent = '';
+        $debugMetrics.textContent = '';
+        showCameraMode();
+        startCamera();
     });
 
-    // ── OpenCV Initialization ───────────────────────────────────────
-    function onOpenCVReady() {
-        // The CDN build sets cv as a global. Check if runtime is already initialized.
+    // ═════════════════════════════════════════════════════════════════
+    //  OPENCV INITIALIZATION
+    // ═════════════════════════════════════════════════════════════════
+
+    function onOpenCvReady() {
         if (typeof cv !== 'undefined' && typeof cv.Mat === 'function') {
             cvReady = true;
-            $statusDot.classList.add('ready');
-            $statusText.textContent = 'Ready';
-            $fileLabel.classList.remove('disabled');
-            $fileInput.disabled = false;
+            $wasmStatus.textContent = 'WASM ativo';
+            $wasmStatus.className = 'wasm-status ready';
+            $captureBtn.disabled = false;
+            startCamera();
             return;
         }
-
-        // Wait for WASM runtime initialization
         if (typeof cv !== 'undefined') {
             cv['onRuntimeInitialized'] = function() {
                 cvReady = true;
-                $statusDot.classList.add('ready');
-                $statusText.textContent = 'Ready';
-                $fileLabel.classList.remove('disabled');
-                $fileInput.disabled = false;
+                $wasmStatus.textContent = 'WASM ativo';
+                $wasmStatus.className = 'wasm-status ready';
+                $captureBtn.disabled = false;
+                startCamera();
             };
         }
     }
 
-    // Timeout: if OpenCV hasn't loaded in 30 seconds, show error
+    // Timeout
     setTimeout(function() {
         if (!cvReady) {
-            $statusText.textContent = 'Failed to load';
-            $statusDot.style.background = '#ff8800';
-            showError('OpenCV.js failed to load within 30 seconds. Check your internet connection and reload the page.');
+            $wasmStatus.textContent = 'OpenCV.js falhou (timeout 30s)';
+            $wasmStatus.className = 'wasm-status error';
         }
     }, 30000);
     </script>
 
-    <!-- OpenCV.js from CDN — placed after main script so onOpenCVReady is defined -->
+    <!-- OpenCV.js CDN — after main script so onOpenCvReady is defined -->
     <script async
         src="https://docs.opencv.org/4.9.0/opencv.js"
-        onload="onOpenCVReady()"
-        onerror="document.getElementById('status-text').textContent='Load failed'; document.getElementById('error-banner').textContent='Could not download OpenCV.js. Check your internet connection.'; document.getElementById('error-banner').classList.remove('hidden');"
+        onload="onOpenCvReady()"
+        onerror="document.getElementById('wasmStatus').textContent='OpenCV.js failed to load'; document.getElementById('wasmStatus').className='wasm-status error';"
         type="text/javascript"></script>
 </body>
 </html>
