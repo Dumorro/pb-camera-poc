@@ -24,6 +24,6 @@
     }
   ],
   "rewrites": [
-    { "source": "/((?!opencv|icons|assets|sw\\.js|manifest\\.json).*)", "destination": "/index.html" }
+    { "source": "/((?!opencv|icons|assets|sw\\.js|manifest\\.json|measurement-poc\\.html).*)", "destination": "/index.html" }
   ]
 }
